@@ -22,6 +22,12 @@ export function createGameConfig(
       antialias: false,
       roundPixels: true,
     },
+    physics: {
+      default: "arcade",
+      arcade: {
+        gravity: { x: 0, y: 0 },
+      },
+    },
     scale: {
       mode: PhaserLib.Scale.FIT,
       autoCenter: PhaserLib.Scale.CENTER_BOTH,

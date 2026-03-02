@@ -6,7 +6,7 @@ import { createMenuScene } from "./scenes/MenuScene";
 import { createPlayScene } from "./scenes/PlayScene";
 
 export async function createPhaserGame(parent: HTMLElement): Promise<Phaser.Game> {
-  const PhaserLib = (await import("phaser")).default;
+  const PhaserLib = await import("phaser");
 
   const MenuScene = createMenuScene(PhaserLib);
   const PlayScene = createPlayScene(PhaserLib);
