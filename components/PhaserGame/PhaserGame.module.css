@@ -1,0 +1,34 @@
+.wrapper {
+  width: min(60vw, 960px);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #1b2740;
+  background: #090d16;
+  box-shadow: 0 24px 64px rgb(1 4 10 / 50%);
+}
+
+.container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container :global(canvas) {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+@media (max-width: 1280px) {
+  .wrapper {
+    width: min(90vw, 960px);
+  }
+}

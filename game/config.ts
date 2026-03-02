@@ -1,0 +1,33 @@
+import type Phaser from "phaser";
+
+export const GAME_WIDTH = 384;
+export const GAME_HEIGHT = 216;
+
+export function createGameConfig(
+  PhaserLib: typeof Phaser,
+  parent: HTMLElement,
+  scenes: Phaser.Types.Scenes.SceneType[],
+): Phaser.Types.Core.GameConfig {
+  return {
+    type: PhaserLib.AUTO,
+    parent,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
+    pixelArt: true,
+    antialias: false,
+    roundPixels: true,
+    backgroundColor: "#0a0d14",
+    render: {
+      pixelArt: true,
+      antialias: false,
+      roundPixels: true,
+    },
+    scale: {
+      mode: PhaserLib.Scale.FIT,
+      autoCenter: PhaserLib.Scale.CENTER_BOTH,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
+    },
+    scene: scenes,
+  };
+}
