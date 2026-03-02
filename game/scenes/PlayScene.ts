@@ -10,6 +10,7 @@ import { Player } from "../entities/Player";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
 export const PLAY_SCENE_KEY = "PlayScene";
+const PERSONAL_BEST_STORAGE_KEY = "moc_personal_best_ms";
 
 const PLAYER_SPEED = 120;
 const SPAWN_INTERVAL_MS = 650;
@@ -39,6 +40,13 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private playerCandleOverlap?: Phaser.Physics.Arcade.Collider;
     private deathDelayEvent?: Phaser.Time.TimerEvent;
     private isDying = false;
+    private runStartMs = 0;
+    private runTimeMs = 0;
+    private bestMs = 0;
+    private runFinalized = false;
+    private timerText?: Phaser.GameObjects.Text;
+    private bestText?: Phaser.GameObjects.Text;
+    private timerUpdateEvent?: Phaser.Time.TimerEvent;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -55,6 +63,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.player = new Player(this, width / 2, height - 16);
       this.fixedPlayerY = height - 16;
       this.isDying = false;
+      this.runFinalized = false;
+      this.runTimeMs = 0;
+      this.bestMs = this.loadBestMs();
+      this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
       this.candlesGroup = this.add.group();
 
@@ -78,6 +90,33 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         .setOrigin(0.5);
       instructionsText.setDepth(100);
 
+      this.timerText = this.add
+        .text(8, 8, `RUN: ${this.formatMs(0)}`, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#f5f5f5",
+        })
+        .setOrigin(0, 0);
+      this.timerText.setDepth(120);
+
+      this.bestText = this.add
+        .text(8, 20, `PB: ${this.formatMs(this.bestMs)}`, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#d4d4d4",
+        })
+        .setOrigin(0, 0);
+      this.bestText.setDepth(120);
+
+      this.timerUpdateEvent = this.time.addEvent({
+        delay: 100,
+        loop: true,
+        callback: () => {
+          const elapsedMs = this.nowMs() - this.runStartMs;
+          this.timerText?.setText(`RUN: ${this.formatMs(elapsedMs)}`);
+        },
+      });
+
       this.movementKeys = this.input.keyboard?.addKeys({
         left: PhaserLib.Input.Keyboard.KeyCodes.LEFT,
         right: PhaserLib.Input.Keyboard.KeyCodes.RIGHT,
@@ -90,9 +129,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.deathDelayEvent = undefined;
         this.candleSpawnEvent?.remove();
         this.candleSpawnEvent = undefined;
+        this.finalizeRun();
         this.isDying = false;
         this.physics?.world?.resume();
-        this.scene.start(GAME_OVER_SCENE_KEY);
+        this.scene.start(GAME_OVER_SCENE_KEY, { runTimeMs: this.runTimeMs, bestMs: this.bestMs });
       };
 
       this.input.keyboard?.once("keydown-ESC", goGameOver);
@@ -113,6 +153,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
         this.candleSpawnEvent?.remove();
         this.candleSpawnEvent = undefined;
+        this.timerUpdateEvent?.remove();
+        this.timerUpdateEvent = undefined;
         this.deathDelayEvent?.remove();
         this.deathDelayEvent = undefined;
         this.lastSpawnX = null;
@@ -132,6 +174,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.candles = [];
         this.candlesGroup?.destroy(true);
         this.candlesGroup = undefined;
+        this.timerText = undefined;
+        this.bestText = undefined;
 
         this.physics?.world?.resume();
       });
@@ -208,6 +252,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       }
 
       this.isDying = true;
+      this.finalizeRun();
       this.player.stopX();
       this.candleSpawnEvent?.remove();
       this.candleSpawnEvent = undefined;
@@ -236,7 +281,62 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
     private onDeathFadeOutComplete() {
       this.physics?.world?.resume();
-      this.scene.start(GAME_OVER_SCENE_KEY);
+      this.scene.start(GAME_OVER_SCENE_KEY, { runTimeMs: this.runTimeMs, bestMs: this.bestMs });
+    }
+
+    private formatMs(ms: number): string {
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+
+    private loadBestMs(): number {
+      try {
+        if (typeof window === "undefined") {
+          return 0;
+        }
+        const rawValue = window.localStorage.getItem(PERSONAL_BEST_STORAGE_KEY);
+        if (!rawValue) {
+          return 0;
+        }
+        const parsed = Number(rawValue);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    private saveBestMs(ms: number): void {
+      try {
+        if (typeof window === "undefined") {
+          return;
+        }
+        window.localStorage.setItem(PERSONAL_BEST_STORAGE_KEY, String(ms));
+      } catch {
+        // Ignore storage errors to keep gameplay stable.
+      }
+    }
+
+    private finalizeRun(): void {
+      if (this.runFinalized) {
+        return;
+      }
+
+      this.runFinalized = true;
+      this.timerUpdateEvent?.remove();
+      this.timerUpdateEvent = undefined;
+
+      this.runTimeMs = Math.max(0, this.nowMs() - this.runStartMs);
+      this.timerText?.setText(`RUN: ${this.formatMs(this.runTimeMs)}`);
+
+      if (this.runTimeMs > this.bestMs) {
+        this.bestMs = this.runTimeMs;
+        this.saveBestMs(this.bestMs);
+      }
+
+      this.bestText?.setText(`PB: ${this.formatMs(this.bestMs)}`);
+    }
+
+    private nowMs(): number {
+      return typeof performance !== "undefined" ? performance.now() : Date.now();
     }
   };
 }
