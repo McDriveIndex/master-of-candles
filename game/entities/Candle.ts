@@ -10,13 +10,13 @@ export class Candle {
   private readonly sprite: Phaser.GameObjects.Rectangle;
   private readonly body: Phaser.Physics.Arcade.Body;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, height: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, height: number, speed: number = CANDLE_SPEED) {
     this.sprite = scene.add.rectangle(x, y, CANDLE_WIDTH, height, 0xf0b35d);
     scene.physics.add.existing(this.sprite, false);
 
     this.body = this.sprite.body as Phaser.Physics.Arcade.Body;
     this.body.setAllowGravity(false);
-    this.body.setVelocity(0, CANDLE_SPEED);
+    this.body.setVelocity(0, speed);
   }
 
   destroy() {

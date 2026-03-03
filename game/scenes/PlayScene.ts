@@ -7,19 +7,25 @@ import {
   CANDLE_WIDTH,
 } from "../entities/Candle";
 import { Player } from "../entities/Player";
+import { DifficultyController, type DifficultyParams } from "../systems/DifficultyController";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
 export const PLAY_SCENE_KEY = "PlayScene";
 const PERSONAL_BEST_STORAGE_KEY = "moc_personal_best_ms";
 
 const PLAYER_SPEED = 120;
-const SPAWN_INTERVAL_MS = 650;
 const MIN_SPAWN_DISTANCE = 28;
+const MAX_SPAWN_DISTANCE = 110;
 const MAX_SPAWN_ATTEMPTS = 8;
+const MAX_HEIGHT_SCALE = 1.1;
 const DEATH_FREEZE_MS = 250;
 const DEATH_SHAKE_DURATION_MS = 120;
 const DEATH_SHAKE_INTENSITY = 0.004;
 const DEATH_FADE_DURATION_MS = 300;
+const PRESSURE_PLATEAU_MS = 120_000;
+const PRESSURE_MAX_PROBABILITY = 0.55;
+const PRESSURE_OFFSET_RANGE = 50;
+const PRESSURE_MIN_PLAYER_OFFSET = 14;
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -36,7 +42,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private candles: Candle[] = [];
     private candlesGroup?: Phaser.GameObjects.Group;
     private lastSpawnX: number | null = null;
-    private candleSpawnEvent?: Phaser.Time.TimerEvent;
+    private spawnTimer?: Phaser.Time.TimerEvent;
     private playerCandleOverlap?: Phaser.Physics.Arcade.Collider;
     private deathDelayEvent?: Phaser.Time.TimerEvent;
     private isDying = false;
@@ -47,6 +53,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
+    private difficultyController?: DifficultyController;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -69,6 +76,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
       this.candlesGroup = this.add.group();
+      this.difficultyController = new DifficultyController();
 
       const titleText = this.add
         .text(width / 2, 16, "PLAY SCENE", {
@@ -127,8 +135,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const goGameOver = () => {
         this.deathDelayEvent?.remove();
         this.deathDelayEvent = undefined;
-        this.candleSpawnEvent?.remove();
-        this.candleSpawnEvent = undefined;
+        this.spawnTimer?.remove();
+        this.spawnTimer = undefined;
         this.finalizeRun();
         this.isDying = false;
         this.physics?.world?.resume();
@@ -144,15 +152,11 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         () => this.onPlayerHitByCandle(),
       );
 
-      this.candleSpawnEvent = this.time.addEvent({
-        delay: SPAWN_INTERVAL_MS,
-        loop: true,
-        callback: () => this.spawnCandle(),
-      });
+      this.scheduleNextSpawn();
 
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
-        this.candleSpawnEvent?.remove();
-        this.candleSpawnEvent = undefined;
+        this.spawnTimer?.remove();
+        this.spawnTimer = undefined;
         this.timerUpdateEvent?.remove();
         this.timerUpdateEvent = undefined;
         this.deathDelayEvent?.remove();
@@ -176,6 +180,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.candlesGroup = undefined;
         this.timerText = undefined;
         this.bestText = undefined;
+        this.difficultyController = undefined;
 
         this.physics?.world?.resume();
       });
@@ -214,23 +219,54 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       );
     }
 
-    private spawnCandle() {
+    private spawnCandle(params: DifficultyParams) {
       const { width } = this.scale;
       const halfW = CANDLE_WIDTH / 2;
       const minX = halfW;
       const maxX = width - halfW;
-
-      let x = PhaserLib.Math.Between(minX, maxX);
-      for (let attempt = 0; attempt < MAX_SPAWN_ATTEMPTS; attempt += 1) {
-        if (this.lastSpawnX === null || Math.abs(x - this.lastSpawnX) >= MIN_SPAWN_DISTANCE) {
-          break;
+      const elapsedMs = this.nowMs() - this.runStartMs;
+      const pressureProbability =
+        PhaserLib.Math.Clamp(elapsedMs / PRESSURE_PLATEAU_MS, 0, 1) * PRESSURE_MAX_PROBABILITY;
+      const usePressureBias = !!this.player && Math.random() < pressureProbability;
+      const playerX = this.player?.gameObject.x ?? width / 2;
+      const pickBiasedX = () => {
+        let candidateX = playerX + PhaserLib.Math.FloatBetween(-PRESSURE_OFFSET_RANGE, PRESSURE_OFFSET_RANGE);
+        if (Math.abs(candidateX - playerX) < PRESSURE_MIN_PLAYER_OFFSET) {
+          const direction = Math.random() < 0.5 ? -1 : 1;
+          candidateX = playerX + direction * PRESSURE_MIN_PLAYER_OFFSET;
         }
+        candidateX = Math.round(candidateX);
+        return PhaserLib.Math.Clamp(candidateX, minX, maxX);
+      };
+      const pickRandomX = () => PhaserLib.Math.Between(minX, maxX);
 
-        x = PhaserLib.Math.Between(minX, maxX);
+      let x = usePressureBias ? pickBiasedX() : pickRandomX();
+      let foundValidX = this.isSpawnDistanceValid(x);
+      for (let attempt = 0; attempt < MAX_SPAWN_ATTEMPTS && !foundValidX; attempt += 1) {
+        x = usePressureBias ? pickBiasedX() : pickRandomX();
+        foundValidX = this.isSpawnDistanceValid(x);
+      }
+
+      if (!foundValidX && this.lastSpawnX !== null) {
+        const direction = playerX >= this.lastSpawnX ? 1 : -1;
+        const fallbackDistance = PhaserLib.Math.Between(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE);
+        x = this.lastSpawnX + direction * fallbackDistance;
+        x = PhaserLib.Math.Clamp(x, minX, maxX);
+
+        if (!this.isSpawnDistanceValid(x)) {
+          x = this.lastSpawnX - direction * fallbackDistance;
+          x = PhaserLib.Math.Clamp(x, minX, maxX);
+        }
       }
 
       x = PhaserLib.Math.Clamp(x, minX, maxX);
       let candleHeight = PhaserLib.Math.Between(CANDLE_MIN_HEIGHT, CANDLE_MAX_HEIGHT);
+      candleHeight = Math.round(candleHeight * params.heightScale);
+      candleHeight = PhaserLib.Math.Clamp(
+        candleHeight,
+        CANDLE_MIN_HEIGHT,
+        Math.round(CANDLE_MAX_HEIGHT * MAX_HEIGHT_SCALE),
+      );
       if (!Number.isFinite(x)) {
         x = width / 2;
       }
@@ -238,12 +274,42 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         candleHeight = 60;
       }
       const spawnY = -candleHeight / 2 - 2;
-      const candle = new Candle(this, x, spawnY, candleHeight);
+      const candle = new Candle(this, x, spawnY, candleHeight, params.candleSpeed);
       candle.gameObject.setDepth(10);
 
       this.candles.push(candle);
       this.candlesGroup?.add(candle.gameObject);
       this.lastSpawnX = x;
+    }
+
+    private isSpawnDistanceValid(x: number): boolean {
+      if (this.lastSpawnX === null) {
+        return true;
+      }
+      const delta = Math.abs(x - this.lastSpawnX);
+      return delta >= MIN_SPAWN_DISTANCE && delta <= MAX_SPAWN_DISTANCE;
+    }
+
+    private scheduleNextSpawn() {
+      if (this.isDying || !this.difficultyController) {
+        return;
+      }
+
+      const elapsedMs = this.nowMs() - this.runStartMs;
+      const scheduleParams = this.difficultyController.getParams(elapsedMs);
+
+      this.spawnTimer = this.time.delayedCall(scheduleParams.spawnIntervalMs, () => {
+        if (this.isDying || !this.scene.isActive()) {
+          return;
+        }
+        const currentElapsedMs = this.nowMs() - this.runStartMs;
+        const params = this.difficultyController?.getParams(currentElapsedMs);
+        if (!params) {
+          return;
+        }
+        this.spawnCandle(params);
+        this.scheduleNextSpawn();
+      });
     }
 
     private onPlayerHitByCandle() {
@@ -254,8 +320,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.isDying = true;
       this.finalizeRun();
       this.player.stopX();
-      this.candleSpawnEvent?.remove();
-      this.candleSpawnEvent = undefined;
+      this.spawnTimer?.remove();
+      this.spawnTimer = undefined;
       this.physics?.world?.pause();
 
       this.deathDelayEvent = this.time.delayedCall(DEATH_FREEZE_MS, () => {
