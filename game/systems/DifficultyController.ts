@@ -2,6 +2,7 @@ export type DifficultyParams = {
   spawnIntervalMs: number;
   candleSpeed: number;
   heightScale: number;
+  pressureBias: number;
 };
 
 type DifficultyConfig = {
@@ -17,6 +18,17 @@ type DifficultyConfig = {
   microDurationMaxMs: number;
   microCooldownMinMs: number;
   microCooldownMaxMs: number;
+  basePressureMaxProbability: number;
+  macroCycleMinMs: number;
+  macroCycleMaxMs: number;
+  macroPeakDurationMinMs: number;
+  macroPeakDurationMaxMs: number;
+  macroRampMs: number;
+  macroSpawnMultiplierAtPeak: number;
+  macroSpeedMultiplierAtPeak: number;
+  macroPressureAddAtPeak: number;
+  minAbsoluteSpawnIntervalMs: number;
+  maxAbsoluteCandleSpeed: number;
 };
 
 const DEFAULT_CONFIG: DifficultyConfig = {
@@ -32,8 +44,20 @@ const DEFAULT_CONFIG: DifficultyConfig = {
   microDurationMaxMs: 1800,
   microCooldownMinMs: 4000,
   microCooldownMaxMs: 6000,
+  basePressureMaxProbability: 0.55,
+  macroCycleMinMs: 45_000,
+  macroCycleMaxMs: 60_000,
+  macroPeakDurationMinMs: 8_000,
+  macroPeakDurationMaxMs: 12_000,
+  macroRampMs: 1_400,
+  macroSpawnMultiplierAtPeak: 0.74,
+  macroSpeedMultiplierAtPeak: 1.22,
+  macroPressureAddAtPeak: 0.14,
+  minAbsoluteSpawnIntervalMs: 260,
+  maxAbsoluteCandleSpeed: 240,
 };
 
+const DEBUG_VOLATILITY = false;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const randomRange = (min: number, max: number) => min + Math.random() * (max - min);
@@ -43,13 +67,33 @@ export class DifficultyController {
   private microUntilMs = 0;
   private nextMicroEligibleMs = 6000;
   private microMultiplier = 1;
+  private macroStartMs = 0;
+  private macroEndMs = 0;
+  private macroDurationMs = 0;
+  private wasMacroActive = false;
 
   constructor(config?: Partial<DifficultyConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.scheduleNextMacroWindow(0);
   }
 
   getParams(elapsedMs: number): DifficultyParams {
     this.updateMicroVariation(elapsedMs);
+    const macroFactor = this.getMacroFactor(elapsedMs);
+    const isMacroActive = macroFactor > 0;
+
+    if (DEBUG_VOLATILITY) {
+      if (isMacroActive && !this.wasMacroActive) {
+        console.log("[VOL] start", {
+          elapsedMs,
+          durationMs: this.macroDurationMs,
+          rampMs: Math.min(this.config.macroRampMs, this.macroDurationMs / 2),
+        });
+      } else if (!isMacroActive && this.wasMacroActive) {
+        console.log("[VOL] end", { elapsedMs });
+      }
+    }
+    this.wasMacroActive = isMacroActive;
 
     const t = clamp(elapsedMs / this.config.plateauTimeMs, 0, 1);
     const progress = 1 - (1 - t) * (1 - t);
@@ -61,24 +105,34 @@ export class DifficultyController {
     );
     const baseCandleSpeed = lerp(this.config.candleSpeedStart, this.config.candleSpeedMax, progress);
     const baseHeightScale = lerp(1, this.config.maxHeightScale, progress);
+    const basePressureBias = progress * this.config.basePressureMaxProbability;
+
+    const minSpawn = Math.max(this.config.spawnIntervalMinMs, this.config.minAbsoluteSpawnIntervalMs);
+    const maxSpeed = Math.min(this.config.candleSpeedMax, this.config.maxAbsoluteCandleSpeed);
 
     const spawnIntervalMs = clamp(
-      Math.round(baseSpawnInterval / this.microMultiplier),
-      this.config.spawnIntervalMinMs,
+      Math.round(
+        (baseSpawnInterval / this.microMultiplier) *
+          lerp(1, this.config.macroSpawnMultiplierAtPeak, macroFactor),
+      ),
+      minSpawn,
       this.config.spawnIntervalStartMs,
     );
     const candleSpeed = clamp(
-      Math.round(baseCandleSpeed * this.microMultiplier),
+      Math.round(
+        baseCandleSpeed * this.microMultiplier * lerp(1, this.config.macroSpeedMultiplierAtPeak, macroFactor),
+      ),
       this.config.candleSpeedStart,
-      this.config.candleSpeedMax,
+      maxSpeed,
     );
     const heightScale = clamp(
       baseHeightScale * (1 + (this.microMultiplier - 1) * 0.5),
       1,
       this.config.maxHeightScale,
     );
+    const pressureBias = clamp(basePressureBias + this.config.macroPressureAddAtPeak * macroFactor, 0, 1);
 
-    return { spawnIntervalMs, candleSpeed, heightScale };
+    return { spawnIntervalMs, candleSpeed, heightScale, pressureBias };
   }
 
   private updateMicroVariation(elapsedMs: number) {
@@ -107,5 +161,46 @@ export class DifficultyController {
       this.config.microDurationMinMs,
       this.config.microDurationMaxMs,
     );
+  }
+
+  private getMacroFactor(elapsedMs: number): number {
+    while (elapsedMs >= this.macroEndMs) {
+      this.scheduleNextMacroWindow(this.macroEndMs);
+    }
+
+    if (elapsedMs < this.macroStartMs) {
+      return 0;
+    }
+
+    const localMs = elapsedMs - this.macroStartMs;
+    const rampMs = Math.min(this.config.macroRampMs, this.macroDurationMs / 2);
+    if (rampMs <= 0) {
+      return 1;
+    }
+
+    if (localMs < rampMs) {
+      return this.smoothstep(localMs / rampMs);
+    }
+
+    if (localMs > this.macroDurationMs - rampMs) {
+      return this.smoothstep((this.macroDurationMs - localMs) / rampMs);
+    }
+
+    return 1;
+  }
+
+  private scheduleNextMacroWindow(fromMs: number) {
+    const cycleGap = randomRange(this.config.macroCycleMinMs, this.config.macroCycleMaxMs);
+    this.macroDurationMs = randomRange(
+      this.config.macroPeakDurationMinMs,
+      this.config.macroPeakDurationMaxMs,
+    );
+    this.macroStartMs = fromMs + cycleGap;
+    this.macroEndMs = this.macroStartMs + this.macroDurationMs;
+  }
+
+  private smoothstep(x: number): number {
+    const t = clamp(x, 0, 1);
+    return t * t * (3 - 2 * t);
   }
 }

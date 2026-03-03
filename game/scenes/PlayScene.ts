@@ -22,8 +22,6 @@ const DEATH_FREEZE_MS = 250;
 const DEATH_SHAKE_DURATION_MS = 120;
 const DEATH_SHAKE_INTENSITY = 0.004;
 const DEATH_FADE_DURATION_MS = 300;
-const PRESSURE_PLATEAU_MS = 120_000;
-const PRESSURE_MAX_PROBABILITY = 0.55;
 const PRESSURE_OFFSET_RANGE = 50;
 const PRESSURE_MIN_PLAYER_OFFSET = 14;
 
@@ -224,10 +222,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const halfW = CANDLE_WIDTH / 2;
       const minX = halfW;
       const maxX = width - halfW;
-      const elapsedMs = this.nowMs() - this.runStartMs;
-      const pressureProbability =
-        PhaserLib.Math.Clamp(elapsedMs / PRESSURE_PLATEAU_MS, 0, 1) * PRESSURE_MAX_PROBABILITY;
-      const usePressureBias = !!this.player && Math.random() < pressureProbability;
+      const usePressureBias = !!this.player && Math.random() < params.pressureBias;
       const playerX = this.player?.gameObject.x ?? width / 2;
       const pickBiasedX = () => {
         let candidateX = playerX + PhaserLib.Math.FloatBetween(-PRESSURE_OFFSET_RANGE, PRESSURE_OFFSET_RANGE);
