@@ -7,6 +7,7 @@ import {
   CANDLE_WIDTH,
 } from "../entities/Candle";
 import { Player } from "../entities/Player";
+import { getLeaderboard } from "../services/leaderboard";
 import { DifficultyController, type DifficultyParams } from "../systems/DifficultyController";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
@@ -50,6 +51,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private runFinalized = false;
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
+    private globalBestText?: Phaser.GameObjects.Text;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
     private difficultyController?: DifficultyController;
 
@@ -113,6 +115,16 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         })
         .setOrigin(0, 0);
       this.bestText.setDepth(120);
+
+      this.globalBestText = this.add
+        .text(8, 32, "Global Best: —", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#d4d4d4",
+        })
+        .setOrigin(0, 0);
+      this.globalBestText.setDepth(120);
+      void this.loadGlobalBest();
 
       this.timerUpdateEvent = this.time.addEvent({
         delay: 100,
@@ -178,6 +190,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.candlesGroup = undefined;
         this.timerText = undefined;
         this.bestText = undefined;
+        this.globalBestText = undefined;
         this.difficultyController = undefined;
 
         this.physics?.world?.resume();
@@ -398,6 +411,24 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
     private nowMs(): number {
       return typeof performance !== "undefined" ? performance.now() : Date.now();
+    }
+
+    private async loadGlobalBest(): Promise<void> {
+      const leaderboard = await getLeaderboard();
+      if (!this.scene.isActive() || !this.globalBestText) {
+        return;
+      }
+
+      if (leaderboard?.globalBestMs !== null && leaderboard?.globalBestMs !== undefined) {
+        this.globalBestText.setText(`Global Best: ${this.formatMsPrecise(leaderboard.globalBestMs)}`);
+        return;
+      }
+
+      this.globalBestText.setText("Global Best: —");
+    }
+
+    private formatMsPrecise(ms: number): string {
+      return `${(ms / 1000).toFixed(2)}s`;
     }
   };
 }

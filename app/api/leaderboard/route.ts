@@ -66,19 +66,24 @@ export async function POST(request: Request) {
     }
 
     const scoreMs = body.scoreMs;
+    const nickname =
+      typeof body.nickname === "string" ? body.nickname : undefined;
 
     if (typeof scoreMs !== "number" || !Number.isFinite(scoreMs) || scoreMs <= 0) {
       return NextResponse.json({ error: "Invalid scoreMs" }, { status: 400 });
     }
+    const scoreMsInt = Math.floor(scoreMs);
+    if (scoreMsInt <= 0) {
+      return NextResponse.json({ error: "Invalid scoreMs" }, { status: 400 });
+    }
 
-    const nickname = typeof body.nickname === "string" ? body.nickname : undefined;
     const hasValidNickname = typeof nickname === "string" && NICKNAME_REGEX.test(nickname);
     const nowIso = new Date().toISOString();
 
     const { count: higherCount, error: higherCountError } = await supabaseServer
       .from("leaderboard_scores")
       .select("id", { count: "exact", head: true })
-      .gt("score_ms", scoreMs);
+      .gt("score_ms", scoreMsInt);
 
     if (higherCountError) {
       throw higherCountError;
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
     const { count: equalEarlierCount, error: equalEarlierCountError } = await supabaseServer
       .from("leaderboard_scores")
       .select("id", { count: "exact", head: true })
-      .eq("score_ms", scoreMs)
+      .eq("score_ms", scoreMsInt)
       .lt("created_at", nowIso);
 
     if (equalEarlierCountError) {
@@ -103,7 +108,7 @@ export async function POST(request: Request) {
       if (hasValidNickname && nickname) {
         const { error: insertError } = await supabaseServer.from("leaderboard_scores").insert({
           nickname,
-          score_ms: scoreMs,
+          score_ms: scoreMsInt,
         });
 
         if (insertError) {
@@ -142,7 +147,20 @@ export async function POST(request: Request) {
       saved,
       requireNickname,
     });
-  } catch {
+  } catch (error) {
+    const typedError = error as { message?: string; stack?: string };
+    console.error("[leaderboard POST] failed", typedError);
+
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        {
+          error: "Leaderboard submit failed",
+          details: String(typedError?.message ?? error),
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ error: "Leaderboard submit failed" }, { status: 500 });
   }
 }
