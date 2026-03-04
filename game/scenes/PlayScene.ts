@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 
+import { Airdrop, AIRDROP_HEIGHT, AIRDROP_WIDTH } from "../entities/Airdrop";
 import {
   Candle,
   CANDLE_MAX_HEIGHT,
@@ -8,6 +9,7 @@ import {
 } from "../entities/Candle";
 import { Player } from "../entities/Player";
 import { getLeaderboard } from "../services/leaderboard";
+import { AirdropSpawnerSystem } from "../systems/AirdropSpawnerSystem";
 import { DifficultyController, type DifficultyParams } from "../systems/DifficultyController";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
@@ -23,8 +25,15 @@ const DEATH_FREEZE_MS = 250;
 const DEATH_SHAKE_DURATION_MS = 120;
 const DEATH_SHAKE_INTENSITY = 0.004;
 const DEATH_FADE_DURATION_MS = 300;
+const AIRDROP_SAVE_GRACE_MS = 120;
+const AIRDROP_SAVE_SHAKE_DURATION_MS = 80;
+const AIRDROP_SAVE_SHAKE_INTENSITY = 0.002;
+const AIRDROP_SPAWN_CANDLE_Y_THRESHOLD = 80;
+const AIRDROP_SPAWN_MIN_CANDLE_X_DISTANCE = 18;
+const AIRDROP_SPAWN_ATTEMPTS = 8;
 const PRESSURE_OFFSET_RANGE = 50;
 const PRESSURE_MIN_PLAYER_OFFSET = 14;
+const AIRDROP_AUTO_SPAWN_DELAY_MS = 60_000;
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -42,7 +51,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private candlesGroup?: Phaser.GameObjects.Group;
     private lastSpawnX: number | null = null;
     private spawnTimer?: Phaser.Time.TimerEvent;
-    private playerCandleOverlap?: Phaser.Physics.Arcade.Collider;
     private deathDelayEvent?: Phaser.Time.TimerEvent;
     private isDying = false;
     private runStartMs = 0;
@@ -52,11 +60,21 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
     private globalBestText?: Phaser.GameObjects.Text;
+    private airdropText?: Phaser.GameObjects.Text;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
     private difficultyController?: DifficultyController;
+    private hasAirdrop = false;
+    private airdropShieldUntilMs = 0;
+    private airdropSpawner?: AirdropSpawnerSystem;
+    private activeAirdrop?: Airdrop;
+    private airdropGroup?: Phaser.Physics.Arcade.Group;
+    private readonly rectA: Phaser.Geom.Rectangle;
+    private readonly rectB: Phaser.Geom.Rectangle;
 
     constructor() {
       super(PLAY_SCENE_KEY);
+      this.rectA = new PhaserLib.Geom.Rectangle();
+      this.rectB = new PhaserLib.Geom.Rectangle();
     }
 
     create() {
@@ -66,17 +84,30 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       this.physics.world.setBounds(0, 0, width, height);
       this.physics.world.setBoundsCollision(true, true, true, true);
+      if (!this.textures.exists("airdrop")) {
+        const airdropGraphics = this.add.graphics();
+        airdropGraphics.fillStyle(0x52d7ff, 1);
+        airdropGraphics.fillRect(0, 0, AIRDROP_WIDTH, AIRDROP_HEIGHT);
+        airdropGraphics.lineStyle(1, 0x0b1220, 0.9);
+        airdropGraphics.strokeRect(0.5, 0.5, AIRDROP_WIDTH - 1, AIRDROP_HEIGHT - 1);
+        airdropGraphics.generateTexture("airdrop", AIRDROP_WIDTH, AIRDROP_HEIGHT);
+        airdropGraphics.destroy();
+      }
 
       this.player = new Player(this, width / 2, height - 16);
       this.fixedPlayerY = height - 16;
       this.isDying = false;
       this.runFinalized = false;
       this.runTimeMs = 0;
+      this.hasAirdrop = false;
+      this.airdropShieldUntilMs = 0;
       this.bestMs = this.loadBestMs();
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
       this.candlesGroup = this.add.group();
       this.difficultyController = new DifficultyController();
+      this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
+      this.airdropGroup = this.physics.add.group();
 
       const titleText = this.add
         .text(width / 2, 16, "PLAY SCENE", {
@@ -126,6 +157,15 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.globalBestText.setDepth(120);
       void this.loadGlobalBest();
 
+      this.airdropText = this.add
+        .text(8, 44, "AIRDROP: OFF", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#d4d4d4",
+        })
+        .setOrigin(0, 0);
+      this.airdropText.setDepth(120);
+
       this.timerUpdateEvent = this.time.addEvent({
         delay: 100,
         loop: true,
@@ -156,12 +196,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.input.keyboard?.once("keydown-ESC", goGameOver);
       this.input.keyboard?.once("keydown-SPACE", goGameOver);
 
-      this.playerCandleOverlap = this.physics.add.overlap(
-        this.player.gameObject,
-        this.candlesGroup,
-        () => this.onPlayerHitByCandle(),
-      );
-
       this.scheduleNextSpawn();
 
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
@@ -179,28 +213,32 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
           this,
         );
 
-        this.playerCandleOverlap?.destroy();
-        this.playerCandleOverlap = undefined;
-
         for (const candle of this.candles) {
           candle.destroy();
         }
         this.candles = [];
         this.candlesGroup?.destroy(true);
         this.candlesGroup = undefined;
+        this.clearActiveAirdrop(false);
+        this.airdropGroup?.destroy(true);
+        this.airdropGroup = undefined;
+        this.airdropSpawner = undefined;
         this.timerText = undefined;
         this.bestText = undefined;
         this.globalBestText = undefined;
+        this.airdropText = undefined;
         this.difficultyController = undefined;
 
         this.physics?.world?.resume();
       });
     }
 
-    update() {
+    update(_time: number, delta: number) {
       if (!this.player || !this.movementKeys) {
         return;
       }
+      const now = this.nowMs();
+      const autoEnabled = (now - this.runStartMs) >= AIRDROP_AUTO_SPAWN_DELAY_MS;
 
       if (!this.isDying) {
         const moveLeft = this.movementKeys.left.isDown || this.movementKeys.a.isDown;
@@ -228,6 +266,42 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
           return !destroyed;
         },
       );
+
+      if (this.activeAirdrop) {
+        this.activeAirdrop.update(delta);
+        const removed = this.activeAirdrop.isExpired || this.activeAirdrop.destroyIfOutOfBounds(this.scale.height);
+        if (removed) {
+          this.clearActiveAirdrop(true);
+        }
+      }
+
+      if (!this.isDying && this.player) {
+        if (
+          this.activeAirdrop
+          && this.overlaps(this.player.gameObject, this.activeAirdrop.gameObject)
+        ) {
+          this.onPlayerPickedAirdrop();
+        }
+
+        for (const candle of this.candles) {
+          if (!this.overlaps(this.player.gameObject, candle.gameObject)) {
+            continue;
+          }
+          this.onPlayerHitByCandle(candle.gameObject);
+          break;
+        }
+      }
+
+      if (
+        autoEnabled
+        && !this.isDying
+        && this.player
+        && this.airdropSpawner
+        && !this.activeAirdrop
+        && this.airdropSpawner.shouldSpawn(now, false)
+      ) {
+        this.spawnAirdrop();
+      }
     }
 
     private spawnCandle(params: DifficultyParams) {
@@ -320,12 +394,25 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       });
     }
 
-    private onPlayerHitByCandle() {
+    private onPlayerHitByCandle(candleObject?: Phaser.GameObjects.GameObject) {
       if (this.isDying || !this.player) {
+        return;
+      }
+      if (this.time.now < this.airdropShieldUntilMs) {
+        return;
+      }
+
+      if (this.hasAirdrop) {
+        this.hasAirdrop = false;
+        this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
+        this.updateAirdropHud();
+        this.destroyCandleByGameObject(candleObject);
+        this.cameras?.main?.shake(AIRDROP_SAVE_SHAKE_DURATION_MS, AIRDROP_SAVE_SHAKE_INTENSITY);
         return;
       }
 
       this.isDying = true;
+      this.clearActiveAirdrop(false);
       this.finalizeRun();
       this.player.stopX();
       this.spawnTimer?.remove();
@@ -360,6 +447,160 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
     private formatMs(ms: number): string {
       return `${(ms / 1000).toFixed(1)}s`;
+    }
+
+    private spawnAirdrop(spawnYOverride?: number) {
+      if (!this.player || !this.airdropSpawner || this.activeAirdrop) {
+        return;
+      }
+
+      let spawnX: number | null = null;
+      for (let attempt = 0; attempt < AIRDROP_SPAWN_ATTEMPTS; attempt += 1) {
+        const candidateX = this.airdropSpawner.pickSpawnX(
+          this.scale.width,
+          this.player.gameObject.x,
+          AIRDROP_WIDTH / 2,
+        );
+        if (this.isAirdropSpawnXSafe(candidateX)) {
+          spawnX = candidateX;
+          break;
+        }
+      }
+
+      if (spawnX === null) {
+        // Spawn failed => treat as resolved to schedule the next attempt.
+        this.airdropSpawner.notifyAirdropResolved(this.nowMs());
+        return;
+      }
+      const spawnY = spawnYOverride ?? (-AIRDROP_HEIGHT / 2 - 2);
+      this.activeAirdrop = new Airdrop(this, spawnX, spawnY);
+      this.activeAirdrop.gameObject.setDepth(60);
+      this.airdropGroup?.add(this.activeAirdrop.gameObject);
+    }
+
+    private onPlayerPickedAirdrop() {
+      if (!this.activeAirdrop || this.isDying) {
+        return;
+      }
+
+      if (!this.hasAirdrop) {
+        this.hasAirdrop = true;
+        this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
+        this.updateAirdropHud();
+        this.showAirdropPickupFeedback();
+      }
+
+      this.clearActiveAirdrop(true);
+    }
+
+    private clearActiveAirdrop(scheduleNext: boolean) {
+      const airdrop = this.activeAirdrop;
+      if (!airdrop) {
+        return;
+      }
+
+      this.activeAirdrop = undefined;
+      const group = this.airdropGroup;
+      if (group && (group as { children?: unknown }).children && typeof group.remove === "function") {
+        group.remove(airdrop.gameObject);
+      }
+
+      airdrop.destroy();
+      if (scheduleNext) {
+        this.airdropSpawner?.notifyAirdropResolved(this.nowMs());
+      }
+    }
+
+    private destroyCandleByGameObject(candleObject?: Phaser.GameObjects.GameObject) {
+      if (!candleObject) {
+        return;
+      }
+
+      const candleIndex = this.candles.findIndex((candle) => candle.gameObject === candleObject);
+      if (candleIndex < 0) {
+        return;
+      }
+
+      const [candle] = this.candles.splice(candleIndex, 1);
+      candle.destroy();
+      this.candlesGroup?.remove(candleObject);
+    }
+
+    private isAirdropSpawnXSafe(spawnX: number): boolean {
+      for (const candle of this.candles) {
+        const candleObject = candle.gameObject;
+        if (candleObject.y >= AIRDROP_SPAWN_CANDLE_Y_THRESHOLD) {
+          continue;
+        }
+        if (Math.abs(spawnX - candleObject.x) < AIRDROP_SPAWN_MIN_CANDLE_X_DISTANCE) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private overlaps(
+      a: Phaser.GameObjects.GameObject,
+      b: Phaser.GameObjects.GameObject,
+    ): boolean {
+      const bodyA = (a as Phaser.GameObjects.GameObject & {
+        body?: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody;
+      }).body;
+      const bodyB = (b as Phaser.GameObjects.GameObject & {
+        body?: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody;
+      }).body;
+      const isBodyEnabled = (body: unknown) => {
+        if (!body || typeof body !== "object") {
+          return false;
+        }
+        const maybeEnable = (body as { enable?: boolean }).enable;
+        return maybeEnable === undefined ? true : !!maybeEnable;
+      };
+
+      const hasArcadeBodies = !!bodyA && !!bodyB && isBodyEnabled(bodyA) && isBodyEnabled(bodyB);
+      const boundsA = hasArcadeBodies
+        ? this.rectA.setTo(bodyA.x, bodyA.y, bodyA.width, bodyA.height)
+        : a.getBounds(this.rectA);
+      const boundsB = hasArcadeBodies
+        ? this.rectB.setTo(bodyB.x, bodyB.y, bodyB.width, bodyB.height)
+        : b.getBounds(this.rectB);
+      return PhaserLib.Geom.Intersects.RectangleToRectangle(boundsA, boundsB);
+    }
+
+    private updateAirdropHud() {
+      this.airdropText?.setText(`AIRDROP: ${this.hasAirdrop ? "ON" : "OFF"}`);
+      this.airdropText?.setColor(this.hasAirdrop ? "#8deaff" : "#d4d4d4");
+    }
+
+    private showAirdropPickupFeedback() {
+      if (!this.airdropText) {
+        return;
+      }
+
+      this.airdropText.setScale(1.1);
+      const feedbackText = this.add
+        .text(this.scale.width / 2, 52, "AIRDROP", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8deaff",
+        })
+        .setOrigin(0.5)
+        .setDepth(130)
+        .setAlpha(0.9)
+        .setScale(1);
+
+      this.tweens.add({
+        targets: this.airdropText,
+        scale: 1,
+        duration: 120,
+      });
+      this.tweens.add({
+        targets: feedbackText,
+        alpha: 0,
+        y: 42,
+        duration: 260,
+        onComplete: () => feedbackText.destroy(),
+      });
     }
 
     private loadBestMs(): number {
