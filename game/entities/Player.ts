@@ -3,11 +3,14 @@ import type Phaser from "phaser";
 const PLAYER_WIDTH = 20;
 const PLAYER_HEIGHT = 12;
 const HITBOX_SCALE = 0.85;
+const PLAYER_VISUAL_HEIGHT = 24;
+const PLAYER_VISUAL_Y_OFFSET = 7;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 export class Player {
   private readonly sprite: Phaser.GameObjects.Rectangle;
   private readonly body: Phaser.Physics.Arcade.Body;
+  private visual?: Phaser.GameObjects.Sprite;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.sprite = scene.add.rectangle(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, 0xf7d463);
@@ -41,6 +44,37 @@ export class Player {
     const halfWidth = this.sprite.displayWidth / 2;
     const clampedX = clamp(this.sprite.x, halfWidth, worldWidth - halfWidth);
     this.sprite.setX(clampedX);
+  }
+
+  enableVisual(scene: Phaser.Scene, textureKey: string): void {
+    if (!scene.textures.exists(textureKey)) {
+      return;
+    }
+    if (this.visual) {
+      return;
+    }
+
+    const y = this.sprite.y + PLAYER_HEIGHT / 2 + PLAYER_VISUAL_Y_OFFSET;
+    this.visual = scene.add.sprite(this.sprite.x, y, textureKey);
+    this.visual.setOrigin(0.5, 1);
+    this.visual.displayHeight = PLAYER_VISUAL_HEIGHT;
+    this.visual.scaleX = this.visual.scaleY;
+    this.visual.setDepth(this.sprite.depth);
+    this.sprite.setVisible(false);
+  }
+
+  updateVisual(): void {
+    if (!this.visual) {
+      return;
+    }
+    this.visual.x = this.sprite.x;
+    this.visual.y = this.sprite.y + PLAYER_HEIGHT / 2 + PLAYER_VISUAL_Y_OFFSET;
+    this.visual.setDepth(this.sprite.depth);
+  }
+
+  destroy(): void {
+    this.visual?.destroy();
+    this.sprite.destroy();
   }
 
   get gameObject() {

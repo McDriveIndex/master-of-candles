@@ -37,6 +37,7 @@ const AIRDROP_AUTO_SPAWN_DELAY_MS = 60_000;
 const CANDLE_BODY_TEXTURE_KEY = "candle-body";
 const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
 const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
+const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -72,6 +73,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private activeAirdrop?: Airdrop;
     private airdropGroup?: Phaser.Physics.Arcade.Group;
     private candleAssetsReady = false;
+    private playerAssetReady = false;
     private readonly rectA: Phaser.Geom.Rectangle;
     private readonly rectB: Phaser.Geom.Rectangle;
 
@@ -97,24 +99,36 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         airdropGraphics.generateTexture("airdrop", AIRDROP_WIDTH, AIRDROP_HEIGHT);
         airdropGraphics.destroy();
       }
-      const candleAssetsLoaded = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
+      this.candleAssetsReady = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
         && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
         && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
-      this.candleAssetsReady = candleAssetsLoaded;
-      if (!candleAssetsLoaded) {
-        if (!this.textures.exists(CANDLE_BODY_TEXTURE_KEY)) {
-          this.load.image(CANDLE_BODY_TEXTURE_KEY, "/assets/game/candles/candlestick_body.png");
-        }
-        if (!this.textures.exists(CANDLE_WICK_TEXTURE_KEY)) {
-          this.load.image(CANDLE_WICK_TEXTURE_KEY, "/assets/game/candles/candlestick_wick.png");
-        }
-        if (!this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY)) {
-          this.load.image(CANDLE_GLOSS_TEXTURE_KEY, "/assets/game/candles/candlestick_gloss.png");
-        }
+      this.playerAssetReady = this.textures.exists(PLAYER_PAWN_TEXTURE_KEY);
+      let queuedAssetLoad = false;
+      if (!this.textures.exists(CANDLE_BODY_TEXTURE_KEY)) {
+        this.load.image(CANDLE_BODY_TEXTURE_KEY, "/assets/game/candles/candlestick_body.png");
+        queuedAssetLoad = true;
+      }
+      if (!this.textures.exists(CANDLE_WICK_TEXTURE_KEY)) {
+        this.load.image(CANDLE_WICK_TEXTURE_KEY, "/assets/game/candles/candlestick_wick.png");
+        queuedAssetLoad = true;
+      }
+      if (!this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY)) {
+        this.load.image(CANDLE_GLOSS_TEXTURE_KEY, "/assets/game/candles/candlestick_gloss.png");
+        queuedAssetLoad = true;
+      }
+      if (!this.playerAssetReady) {
+        this.load.image(PLAYER_PAWN_TEXTURE_KEY, "/assets/game/player/pawn.png");
+        queuedAssetLoad = true;
+      }
+      if (queuedAssetLoad) {
         this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
           this.candleAssetsReady = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
             && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
             && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
+          this.playerAssetReady = this.textures.exists(PLAYER_PAWN_TEXTURE_KEY);
+          if (this.scene.isActive() && this.player && this.playerAssetReady) {
+            this.player.enableVisual(this, PLAYER_PAWN_TEXTURE_KEY);
+          }
         }, this);
         this.load.start();
       }
@@ -129,6 +143,9 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.bestMs = this.loadBestMs();
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
+      if (this.playerAssetReady) {
+        this.player.enableVisual(this, PLAYER_PAWN_TEXTURE_KEY);
+      }
       this.candlesGroup = this.add.group();
       this.difficultyController = new DifficultyController();
       this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
@@ -253,6 +270,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.globalBestText = undefined;
         this.airdropText = undefined;
         this.difficultyController = undefined;
+        this.player?.destroy();
+        this.player = undefined;
 
         this.physics?.world?.resume();
       });
@@ -281,6 +300,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.player.setY(this.fixedPlayerY);
         this.player.clampToWorld(this.scale.width);
       }
+      this.player?.updateVisual();
 
       this.candles = this.candles.filter(
         (candle) => {
