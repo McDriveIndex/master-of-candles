@@ -12,7 +12,7 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
     create() {
       const { width, height } = this.scale;
 
-      this.cameras.main.setBackgroundColor("#0b1020");
+      this.cameras.main.setBackgroundColor("#000000");
 
       this.add
         .text(width / 2, height / 2 - 16, "MASTER OF CANDLES", {

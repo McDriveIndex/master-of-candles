@@ -86,7 +86,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     create() {
       const { width, height } = this.scale;
 
-      this.cameras.main.setBackgroundColor("#141414");
+      this.cameras.main.setBackgroundColor("#000000");
 
       this.physics.world.setBounds(0, 0, width, height);
       this.physics.world.setBoundsCollision(true, true, true, true);

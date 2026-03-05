@@ -30,7 +30,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       const runTimeMs = typeof rawRun === "number" && Number.isFinite(rawRun) && rawRun >= 0 ? rawRun : 0;
       const bestMs = typeof rawBest === "number" && Number.isFinite(rawBest) && rawBest >= 0 ? rawBest : 0;
 
-      this.cameras.main.setBackgroundColor("#1f0f0f");
+      this.cameras.main.setBackgroundColor("#000000");
 
       this.add
         .text(width / 2, height / 2 - 8, "GAME OVER", {

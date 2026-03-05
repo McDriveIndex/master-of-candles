@@ -16,7 +16,7 @@ export function createGameConfig(
     pixelArt: true,
     antialias: false,
     roundPixels: true,
-    backgroundColor: "#0a0d14",
+    backgroundColor: "#000000",
     render: {
       pixelArt: true,
       antialias: false,
