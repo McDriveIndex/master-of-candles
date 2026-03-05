@@ -592,12 +592,22 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       a: Phaser.GameObjects.GameObject,
       b: Phaser.GameObjects.GameObject,
     ): boolean {
+      type BoundsCapableGameObject = Phaser.GameObjects.GameObject & {
+        getBounds: (output?: Phaser.Geom.Rectangle) => Phaser.Geom.Rectangle;
+      };
       const bodyA = (a as Phaser.GameObjects.GameObject & {
         body?: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody;
       }).body;
       const bodyB = (b as Phaser.GameObjects.GameObject & {
         body?: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody;
       }).body;
+      const hasGetBounds = (obj: unknown): obj is BoundsCapableGameObject => {
+        if (!obj || typeof obj !== "object") {
+          return false;
+        }
+        const maybeGetBounds = (obj as { getBounds?: unknown }).getBounds;
+        return typeof maybeGetBounds === "function";
+      };
       const isBodyEnabled = (body: unknown) => {
         if (!body || typeof body !== "object") {
           return false;
@@ -609,10 +619,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const hasArcadeBodies = !!bodyA && !!bodyB && isBodyEnabled(bodyA) && isBodyEnabled(bodyB);
       const boundsA = hasArcadeBodies
         ? this.rectA.setTo(bodyA.x, bodyA.y, bodyA.width, bodyA.height)
-        : a.getBounds(this.rectA);
+        : (hasGetBounds(a) ? a.getBounds(this.rectA) : this.rectA.setTo(-999999, -999999, 0, 0));
       const boundsB = hasArcadeBodies
         ? this.rectB.setTo(bodyB.x, bodyB.y, bodyB.width, bodyB.height)
-        : b.getBounds(this.rectB);
+        : (hasGetBounds(b) ? b.getBounds(this.rectB) : this.rectB.setTo(-999999, -999999, 0, 0));
       return PhaserLib.Geom.Intersects.RectangleToRectangle(boundsA, boundsB);
     }
 
