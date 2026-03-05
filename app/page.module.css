@@ -1,20 +1,23 @@
 .page {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   padding: 32px;
-  background: radial-gradient(circle at top, #151d30 0%, #080b12 60%);
+  padding-top: clamp(28px, 5vh, 72px);
+  overflow: hidden;
+  background: #000;
   color: #f4f5f7;
   font-family: var(--font-geist-sans);
 }
 
 .main {
+  height: 100%;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 0;
 }
 
 .title {
@@ -30,8 +33,23 @@
   color: #c1c7d6;
 }
 
-.gameArea {
+.stage {
+  position: relative;
+  width: min(44vw, 720px);
+  height: 100%;
+  --game-bottom: clamp(20px, 4vh, 56px);
+  --hand-grip: clamp(140px, 14vh, 220px);
+  overflow: visible;
+}
+
+.gameSlot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--game-bottom);
+  z-index: 10;
   width: 100%;
   display: flex;
   justify-content: center;
+  margin-top: 0;
 }
