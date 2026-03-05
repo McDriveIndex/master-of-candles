@@ -34,6 +34,9 @@ const AIRDROP_SPAWN_ATTEMPTS = 8;
 const PRESSURE_OFFSET_RANGE = 50;
 const PRESSURE_MIN_PLAYER_OFFSET = 14;
 const AIRDROP_AUTO_SPAWN_DELAY_MS = 60_000;
+const CANDLE_BODY_TEXTURE_KEY = "candle-body";
+const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
+const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -68,6 +71,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private airdropSpawner?: AirdropSpawnerSystem;
     private activeAirdrop?: Airdrop;
     private airdropGroup?: Phaser.Physics.Arcade.Group;
+    private candleAssetsReady = false;
     private readonly rectA: Phaser.Geom.Rectangle;
     private readonly rectB: Phaser.Geom.Rectangle;
 
@@ -92,6 +96,27 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         airdropGraphics.strokeRect(0.5, 0.5, AIRDROP_WIDTH - 1, AIRDROP_HEIGHT - 1);
         airdropGraphics.generateTexture("airdrop", AIRDROP_WIDTH, AIRDROP_HEIGHT);
         airdropGraphics.destroy();
+      }
+      const candleAssetsLoaded = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
+        && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
+        && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
+      this.candleAssetsReady = candleAssetsLoaded;
+      if (!candleAssetsLoaded) {
+        if (!this.textures.exists(CANDLE_BODY_TEXTURE_KEY)) {
+          this.load.image(CANDLE_BODY_TEXTURE_KEY, "/assets/game/candles/candlestick_body.png");
+        }
+        if (!this.textures.exists(CANDLE_WICK_TEXTURE_KEY)) {
+          this.load.image(CANDLE_WICK_TEXTURE_KEY, "/assets/game/candles/candlestick_wick.png");
+        }
+        if (!this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY)) {
+          this.load.image(CANDLE_GLOSS_TEXTURE_KEY, "/assets/game/candles/candlestick_gloss.png");
+        }
+        this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
+          this.candleAssetsReady = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
+            && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
+            && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
+        }, this);
+        this.load.start();
       }
 
       this.player = new Player(this, width / 2, height - 16);
@@ -355,9 +380,13 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!Number.isFinite(candleHeight)) {
         candleHeight = 60;
       }
-      const spawnY = -candleHeight / 2 - 2;
-      const candle = new Candle(this, x, spawnY, candleHeight, params.candleSpeed);
-      candle.gameObject.setDepth(10);
+      const spawnY = this.candleAssetsReady
+        ? -Candle.getTotalHalfHeight(candleHeight) - 2
+        : -candleHeight / 2 - 2;
+      const candle = new Candle(this, x, spawnY, candleHeight, params.candleSpeed, {
+        visualsEnabled: this.candleAssetsReady,
+      });
+      candle.setDepth(10);
 
       this.candles.push(candle);
       this.candlesGroup?.add(candle.gameObject);
