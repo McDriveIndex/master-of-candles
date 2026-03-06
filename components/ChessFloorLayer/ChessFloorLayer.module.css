@@ -1,0 +1,45 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(
+    to top,
+    #000 0%,
+    #000 14%,
+    rgb(0 0 0 / 94%) 22%,
+    rgb(0 0 0 / 68%) 30%,
+    rgb(0 0 0 / 24%) 38%,
+    transparent 52%
+  );
+}
+
+.floor {
+  position: absolute;
+  left: 50%;
+  bottom: -18vh;
+  width: clamp(900px, 98vw, 1500px);
+  height: auto;
+  transform: translateX(-50%);
+  opacity: 0.94;
+  filter: contrast(1.22) brightness(1.08) saturate(1.05);
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgb(0 0 0 / 98%) 0%,
+    rgb(0 0 0 / 90%) 18%,
+    rgb(0 0 0 / 66%) 30%,
+    rgb(0 0 0 / 24%) 42%,
+    transparent 54%
+  );
+  mask-image: linear-gradient(
+    to top,
+    rgb(0 0 0 / 98%) 0%,
+    rgb(0 0 0 / 90%) 18%,
+    rgb(0 0 0 / 66%) 30%,
+    rgb(0 0 0 / 24%) 42%,
+    transparent 54%
+  );
+}

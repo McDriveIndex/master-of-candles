@@ -1,3 +1,4 @@
+import ChessFloorLayer from "@/components/ChessFloorLayer/ChessFloorLayer";
 import MatrixBackground from "@/components/MatrixBackground/MatrixBackground";
 import PhaserGame from "@/components/PhaserGame/PhaserGame";
 import MasterLayer from "@/components/MasterLayer/MasterLayer";
@@ -8,6 +9,7 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <MatrixBackground />
+      <ChessFloorLayer />
       <main className={`${styles.main} ${styles.contentLayer}`}>
         <div className={styles.stage}>
           <MasterLayer />
