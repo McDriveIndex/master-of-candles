@@ -23,6 +23,63 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
           .setDepth(20);
         logo.displayWidth = width * 0.72;
         logo.scaleY = logo.scaleX;
+        const eyeGlow = this.add
+          .ellipse(
+            logo.x,
+            logo.y - logo.displayHeight * 0.195 + 0.5,
+            logo.displayWidth * 0.088,
+            logo.displayHeight * 0.032,
+            0xff2a2a,
+            0.28,
+          )
+          .setDepth(22)
+          .setBlendMode(PhaserLib.BlendModes.ADD);
+        const eyeAura = this.add
+          .ellipse(
+            logo.x,
+            logo.y - logo.displayHeight * 0.195 + 0.5,
+            logo.displayWidth * 0.14,
+            logo.displayHeight * 0.055,
+            0xff2a2a,
+            0.12,
+          )
+          .setDepth(21)
+          .setBlendMode(PhaserLib.BlendModes.ADD);
+        this.tweens.add({
+          targets: eyeGlow,
+          alpha: 0.48,
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        this.tweens.add({
+          targets: eyeGlow,
+          scaleX: 1.04,
+          scaleY: 1.08,
+          duration: 1280,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        this.tweens.add({
+          targets: eyeAura,
+          alpha: 0.2,
+          duration: 1040,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        this.tweens.add({
+          targets: eyeAura,
+          scaleX: 1.05,
+          scaleY: 1.09,
+          duration: 1520,
+          delay: 90,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
       };
       if (this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
         placeLogo();
