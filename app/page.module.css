@@ -20,6 +20,11 @@
   gap: 0;
 }
 
+.contentLayer {
+  position: relative;
+  z-index: 1;
+}
+
 .title {
   margin: 0;
   font-size: clamp(2rem, 3vw, 2.75rem);
