@@ -64,7 +64,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
     private globalBestText?: Phaser.GameObjects.Text;
-    private airdropText?: Phaser.GameObjects.Text;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
     private difficultyController?: DifficultyController;
     private hasAirdrop = false;
@@ -151,26 +150,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
       this.airdropGroup = this.physics.add.group();
 
-      const titleText = this.add
-        .text(width / 2, 16, "PLAY SCENE", {
-          fontFamily: "monospace",
-          fontSize: "14px",
-          color: "#f5f5f5",
-          align: "center",
-        })
-        .setOrigin(0.5);
-      titleText.setDepth(100);
-
-      const instructionsText = this.add
-        .text(width / 2, 34, "ARROWS / A-D MOVE | ESC OR SPACE FOR GAME OVER", {
-          fontFamily: "monospace",
-          fontSize: "8px",
-          color: "#d4d4d4",
-          align: "center",
-        })
-        .setOrigin(0.5);
-      instructionsText.setDepth(100);
-
       this.timerText = this.add
         .text(8, 8, `RUN: ${this.formatMs(0)}`, {
           fontFamily: "monospace",
@@ -181,32 +160,23 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.timerText.setDepth(120);
 
       this.bestText = this.add
-        .text(8, 20, `PB: ${this.formatMs(this.bestMs)}`, {
+        .text(width - 8, 8, `PB: ${this.formatMs(this.bestMs)}`, {
           fontFamily: "monospace",
           fontSize: "10px",
           color: "#d4d4d4",
         })
-        .setOrigin(0, 0);
+        .setOrigin(1, 0);
       this.bestText.setDepth(120);
 
       this.globalBestText = this.add
-        .text(8, 32, "Global Best: —", {
+        .text(width - 8, 20, "WORLD: —", {
           fontFamily: "monospace",
           fontSize: "10px",
           color: "#d4d4d4",
         })
-        .setOrigin(0, 0);
+        .setOrigin(1, 0);
       this.globalBestText.setDepth(120);
       void this.loadGlobalBest();
-
-      this.airdropText = this.add
-        .text(8, 44, "AIRDROP: OFF", {
-          fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#d4d4d4",
-        })
-        .setOrigin(0, 0);
-      this.airdropText.setDepth(120);
 
       this.timerUpdateEvent = this.time.addEvent({
         delay: 100,
@@ -268,7 +238,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.timerText = undefined;
         this.bestText = undefined;
         this.globalBestText = undefined;
-        this.airdropText = undefined;
         this.difficultyController = undefined;
         this.player?.destroy();
         this.player = undefined;
@@ -454,7 +423,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (this.hasAirdrop) {
         this.hasAirdrop = false;
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
-        this.updateAirdropHud();
         this.destroyCandleByGameObject(candleObject);
         this.cameras?.main?.shake(AIRDROP_SAVE_SHAKE_DURATION_MS, AIRDROP_SAVE_SHAKE_INTENSITY);
         return;
@@ -535,7 +503,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!this.hasAirdrop) {
         this.hasAirdrop = true;
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
-        this.updateAirdropHud();
         this.showAirdropPickupFeedback();
       }
 
@@ -626,17 +593,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       return PhaserLib.Geom.Intersects.RectangleToRectangle(boundsA, boundsB);
     }
 
-    private updateAirdropHud() {
-      this.airdropText?.setText(`AIRDROP: ${this.hasAirdrop ? "ON" : "OFF"}`);
-      this.airdropText?.setColor(this.hasAirdrop ? "#8deaff" : "#d4d4d4");
-    }
-
     private showAirdropPickupFeedback() {
-      if (!this.airdropText) {
-        return;
-      }
-
-      this.airdropText.setScale(1.1);
       const feedbackText = this.add
         .text(this.scale.width / 2, 52, "AIRDROP", {
           fontFamily: "monospace",
@@ -648,11 +605,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         .setAlpha(0.9)
         .setScale(1);
 
-      this.tweens.add({
-        targets: this.airdropText,
-        scale: 1,
-        duration: 120,
-      });
       this.tweens.add({
         targets: feedbackText,
         alpha: 0,
@@ -720,11 +672,11 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       }
 
       if (leaderboard?.globalBestMs !== null && leaderboard?.globalBestMs !== undefined) {
-        this.globalBestText.setText(`Global Best: ${this.formatMsPrecise(leaderboard.globalBestMs)}`);
+        this.globalBestText.setText(`WORLD: ${this.formatMsPrecise(leaderboard.globalBestMs)}`);
         return;
       }
 
-      this.globalBestText.setText("Global Best: —");
+      this.globalBestText.setText("WORLD: —");
     }
 
     private formatMsPrecise(ms: number): string {
