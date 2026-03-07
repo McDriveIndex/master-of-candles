@@ -9,13 +9,20 @@ export const AIRDROP_TTL_MS = 3000;
 const AIRDROP_OUT_OF_BOUNDS_MARGIN = 4;
 const AIRDROP_BODY_OFFSET_X = (AIRDROP_VISUAL_WIDTH - AIRDROP_WIDTH) / 2;
 const AIRDROP_BODY_OFFSET_Y = AIRDROP_VISUAL_HEIGHT - AIRDROP_HEIGHT;
+const AIRDROP_SWAY_MAIN_AMPLITUDE_PX = 4;
+const AIRDROP_SWAY_MAIN_FREQUENCY = 1.35;
+const AIRDROP_SWAY_SECONDARY_AMPLITUDE_PX = 1.25;
+const AIRDROP_SWAY_SECONDARY_FREQUENCY = 2.4;
+const AIRDROP_SWAY_SECONDARY_PHASE_OFFSET = 0.9;
 
 export class Airdrop {
   private readonly sprite: Phaser.Physics.Arcade.Image;
   private readonly body: Phaser.Physics.Arcade.Body;
   private readonly speedPxPerSec: number;
+  private readonly baseX: number;
   private blinkTween?: Phaser.Tweens.Tween;
   private expiryEvent?: Phaser.Time.TimerEvent;
+  private elapsedMs = 0;
   private expired = false;
   private destroyed = false;
 
@@ -30,6 +37,7 @@ export class Airdrop {
     this.sprite.setDisplaySize(AIRDROP_VISUAL_WIDTH, AIRDROP_VISUAL_HEIGHT);
     this.sprite.setAlpha(1);
     this.speedPxPerSec = speed;
+    this.baseX = x;
 
     this.body = this.sprite.body as Phaser.Physics.Arcade.Body;
     this.body.moves = true;
@@ -54,7 +62,14 @@ export class Airdrop {
     if (this.destroyed) {
       return;
     }
+    this.elapsedMs += deltaMs;
+    const elapsedSeconds = this.elapsedMs / 1000;
+    const swayOffset = Math.sin(elapsedSeconds * AIRDROP_SWAY_MAIN_FREQUENCY) * AIRDROP_SWAY_MAIN_AMPLITUDE_PX
+      + Math.sin(
+        elapsedSeconds * AIRDROP_SWAY_SECONDARY_FREQUENCY + AIRDROP_SWAY_SECONDARY_PHASE_OFFSET,
+      ) * AIRDROP_SWAY_SECONDARY_AMPLITUDE_PX;
     const dy = (this.speedPxPerSec * deltaMs) / 1000;
+    this.sprite.x = this.baseX + swayOffset;
     this.sprite.y += dy;
     this.body.updateFromGameObject();
   }
