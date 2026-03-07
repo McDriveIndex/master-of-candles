@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 
-import { Airdrop, AIRDROP_HEIGHT, AIRDROP_WIDTH } from "../entities/Airdrop";
+import { Airdrop, AIRDROP_VISUAL_HEIGHT, AIRDROP_VISUAL_WIDTH } from "../entities/Airdrop";
 import {
   Candle,
   CANDLE_MAX_HEIGHT,
@@ -29,15 +29,18 @@ const AIRDROP_SAVE_GRACE_MS = 120;
 const AIRDROP_SAVE_SHAKE_DURATION_MS = 80;
 const AIRDROP_SAVE_SHAKE_INTENSITY = 0.002;
 const AIRDROP_SPAWN_CANDLE_Y_THRESHOLD = 80;
-const AIRDROP_SPAWN_MIN_CANDLE_X_DISTANCE = 18;
+const AIRDROP_SPAWN_FOOTPRINT_PADDING_X = 2;
+const AIRDROP_SPAWN_CANDLE_HEAD_ALLOWANCE_Y = 10;
 const AIRDROP_SPAWN_ATTEMPTS = 8;
 const PRESSURE_OFFSET_RANGE = 50;
 const PRESSURE_MIN_PLAYER_OFFSET = 14;
 const AIRDROP_AUTO_SPAWN_DELAY_MS = 60_000;
+const AIRDROP_TEXTURE_KEY = "airdrop";
 const CANDLE_BODY_TEXTURE_KEY = "candle-body";
 const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
 const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
 const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
+const PLAYER_PAWN_AIRDROP_TEXTURE_KEY = "player_pawn_airdrop";
 const HUD_MARGIN_X = 10;
 const HUD_TOP_Y = 8;
 const HUD_SECONDARY_Y = 20;
@@ -78,6 +81,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private airdropGroup?: Phaser.Physics.Arcade.Group;
     private candleAssetsReady = false;
     private playerAssetReady = false;
+    private playerAirdropAssetReady = false;
     private readonly rectA: Phaser.Geom.Rectangle;
     private readonly rectB: Phaser.Geom.Rectangle;
 
@@ -94,20 +98,16 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       this.physics.world.setBounds(0, 0, width, height);
       this.physics.world.setBoundsCollision(true, true, true, true);
-      if (!this.textures.exists("airdrop")) {
-        const airdropGraphics = this.add.graphics();
-        airdropGraphics.fillStyle(0x52d7ff, 1);
-        airdropGraphics.fillRect(0, 0, AIRDROP_WIDTH, AIRDROP_HEIGHT);
-        airdropGraphics.lineStyle(1, 0x0b1220, 0.9);
-        airdropGraphics.strokeRect(0.5, 0.5, AIRDROP_WIDTH - 1, AIRDROP_HEIGHT - 1);
-        airdropGraphics.generateTexture("airdrop", AIRDROP_WIDTH, AIRDROP_HEIGHT);
-        airdropGraphics.destroy();
-      }
       this.candleAssetsReady = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
         && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
         && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
       this.playerAssetReady = this.textures.exists(PLAYER_PAWN_TEXTURE_KEY);
+      this.playerAirdropAssetReady = this.textures.exists(PLAYER_PAWN_AIRDROP_TEXTURE_KEY);
       let queuedAssetLoad = false;
+      if (!this.textures.exists(AIRDROP_TEXTURE_KEY)) {
+        this.load.image(AIRDROP_TEXTURE_KEY, "/assets/game/airdrop/airdrop.png");
+        queuedAssetLoad = true;
+      }
       if (!this.textures.exists(CANDLE_BODY_TEXTURE_KEY)) {
         this.load.image(CANDLE_BODY_TEXTURE_KEY, "/assets/game/candles/candlestick_body.png");
         queuedAssetLoad = true;
@@ -124,14 +124,19 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.load.image(PLAYER_PAWN_TEXTURE_KEY, "/assets/game/player/pawn.png");
         queuedAssetLoad = true;
       }
+      if (!this.playerAirdropAssetReady) {
+        this.load.image(PLAYER_PAWN_AIRDROP_TEXTURE_KEY, "/assets/game/player/pawn_airdrop.png");
+        queuedAssetLoad = true;
+      }
       if (queuedAssetLoad) {
         this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
           this.candleAssetsReady = this.textures.exists(CANDLE_BODY_TEXTURE_KEY)
             && this.textures.exists(CANDLE_WICK_TEXTURE_KEY)
             && this.textures.exists(CANDLE_GLOSS_TEXTURE_KEY);
           this.playerAssetReady = this.textures.exists(PLAYER_PAWN_TEXTURE_KEY);
-          if (this.scene.isActive() && this.player && this.playerAssetReady) {
-            this.player.enableVisual(this, PLAYER_PAWN_TEXTURE_KEY);
+          this.playerAirdropAssetReady = this.textures.exists(PLAYER_PAWN_AIRDROP_TEXTURE_KEY);
+          if (this.scene.isActive() && this.player) {
+            this.syncPlayerVisualWithAirdropState();
           }
         }, this);
         this.load.start();
@@ -147,9 +152,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.bestMs = this.loadBestMs();
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
-      if (this.playerAssetReady) {
-        this.player.enableVisual(this, PLAYER_PAWN_TEXTURE_KEY);
-      }
+      this.syncPlayerVisualWithAirdropState();
       this.candlesGroup = this.add.group();
       this.difficultyController = new DifficultyController();
       this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
@@ -230,6 +233,14 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       this.input.keyboard?.once("keydown-ESC", goGameOver);
       this.input.keyboard?.once("keydown-SPACE", goGameOver);
+      // Temporary debug shortcut for M17 testing: force an immediate airdrop spawn via normal flow.
+      const debugSpawnAirdrop = () => {
+        if (this.isDying) {
+          return;
+        }
+        this.spawnAirdrop();
+      };
+      this.input.keyboard?.on("keydown-P", debugSpawnAirdrop);
 
       this.scheduleNextSpawn();
 
@@ -249,6 +260,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
           this.onDeathFadeOutComplete,
           this,
         );
+        this.input.keyboard?.off("keydown-P", debugSpawnAirdrop);
 
         for (const candle of this.candles) {
           candle.destroy();
@@ -362,10 +374,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const pickRandomX = () => PhaserLib.Math.Between(minX, maxX);
 
       let x = usePressureBias ? pickBiasedX() : pickRandomX();
-      let foundValidX = this.isSpawnDistanceValid(x);
+      let foundValidX = this.isSpawnDistanceValid(x) && this.isCandleSpawnXSafeFromAirdropLane(x);
       for (let attempt = 0; attempt < MAX_SPAWN_ATTEMPTS && !foundValidX; attempt += 1) {
         x = usePressureBias ? pickBiasedX() : pickRandomX();
-        foundValidX = this.isSpawnDistanceValid(x);
+        foundValidX = this.isSpawnDistanceValid(x) && this.isCandleSpawnXSafeFromAirdropLane(x);
       }
 
       if (!foundValidX && this.lastSpawnX !== null) {
@@ -374,13 +386,16 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         x = this.lastSpawnX + direction * fallbackDistance;
         x = PhaserLib.Math.Clamp(x, minX, maxX);
 
-        if (!this.isSpawnDistanceValid(x)) {
+        if (!this.isSpawnDistanceValid(x) || !this.isCandleSpawnXSafeFromAirdropLane(x)) {
           x = this.lastSpawnX - direction * fallbackDistance;
           x = PhaserLib.Math.Clamp(x, minX, maxX);
         }
       }
 
       x = PhaserLib.Math.Clamp(x, minX, maxX);
+      if (!this.isCandleSpawnXSafeFromAirdropLane(x)) {
+        return;
+      }
       let candleHeight = PhaserLib.Math.Between(CANDLE_MIN_HEIGHT, CANDLE_MAX_HEIGHT);
       candleHeight = Math.round(candleHeight * params.heightScale);
       candleHeight = PhaserLib.Math.Clamp(
@@ -448,6 +463,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (this.hasAirdrop) {
         this.hasAirdrop = false;
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
+        this.syncPlayerVisualWithAirdropState();
         this.destroyCandleByGameObject(candleObject);
         this.cameras?.main?.shake(AIRDROP_SAVE_SHAKE_DURATION_MS, AIRDROP_SAVE_SHAKE_INTENSITY);
         return;
@@ -492,7 +508,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     }
 
     private spawnAirdrop(spawnYOverride?: number) {
-      if (!this.player || !this.airdropSpawner || this.activeAirdrop) {
+      if (!this.player || !this.airdropSpawner || this.activeAirdrop || !this.textures.exists(AIRDROP_TEXTURE_KEY)) {
         return;
       }
 
@@ -501,7 +517,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         const candidateX = this.airdropSpawner.pickSpawnX(
           this.scale.width,
           this.player.gameObject.x,
-          AIRDROP_WIDTH / 2,
+          AIRDROP_VISUAL_WIDTH / 2,
         );
         if (this.isAirdropSpawnXSafe(candidateX)) {
           spawnX = candidateX;
@@ -514,7 +530,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.airdropSpawner.notifyAirdropResolved(this.nowMs());
         return;
       }
-      const spawnY = spawnYOverride ?? (-AIRDROP_HEIGHT / 2 - 2);
+      const spawnY = spawnYOverride ?? (-AIRDROP_VISUAL_HEIGHT / 2 - 2);
       this.activeAirdrop = new Airdrop(this, spawnX, spawnY);
       this.activeAirdrop.gameObject.setDepth(60);
       this.airdropGroup?.add(this.activeAirdrop.gameObject);
@@ -528,6 +544,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!this.hasAirdrop) {
         this.hasAirdrop = true;
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
+        this.syncPlayerVisualWithAirdropState();
         this.showAirdropPickupFeedback();
       }
 
@@ -567,17 +584,68 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.candlesGroup?.remove(candleObject);
     }
 
+    private syncPlayerVisualWithAirdropState() {
+      if (!this.player || !this.playerAssetReady) {
+        return;
+      }
+
+      this.player.enableVisual(this, PLAYER_PAWN_TEXTURE_KEY);
+      const targetTextureKey = this.hasAirdrop && this.playerAirdropAssetReady
+        ? PLAYER_PAWN_AIRDROP_TEXTURE_KEY
+        : PLAYER_PAWN_TEXTURE_KEY;
+      this.player.setVisualTexture(targetTextureKey);
+    }
+
     private isAirdropSpawnXSafe(spawnX: number): boolean {
+      const spawnBandTop = -AIRDROP_VISUAL_HEIGHT - 2;
+      const spawnBandHeight = AIRDROP_SPAWN_CANDLE_Y_THRESHOLD - spawnBandTop;
+      const airdropSpawnBandBounds = this.rectA.setTo(
+        spawnX - AIRDROP_VISUAL_WIDTH / 2 - AIRDROP_SPAWN_FOOTPRINT_PADDING_X,
+        spawnBandTop,
+        AIRDROP_VISUAL_WIDTH + AIRDROP_SPAWN_FOOTPRINT_PADDING_X * 2,
+        spawnBandHeight,
+      );
       for (const candle of this.candles) {
-        const candleObject = candle.gameObject;
-        if (candleObject.y >= AIRDROP_SPAWN_CANDLE_Y_THRESHOLD) {
+        const candleObject = candle.gameObject as Phaser.GameObjects.GameObject & {
+          body?: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody;
+          getBounds?: (output?: Phaser.Geom.Rectangle) => Phaser.Geom.Rectangle;
+        };
+        const candleBody = candleObject.body;
+        let candleBounds: Phaser.Geom.Rectangle | null = null;
+        if (candleBody && ((candleBody as { enable?: boolean }).enable ?? true)) {
+          candleBounds = this.rectB.setTo(candleBody.x, candleBody.y, candleBody.width, candleBody.height);
+        } else if (typeof candleObject.getBounds === "function") {
+          candleBounds = candleObject.getBounds(this.rectB);
+        }
+        if (candleBounds) {
+          candleBounds = this.rectB.setTo(
+            candleBounds.x,
+            candleBounds.y - AIRDROP_SPAWN_CANDLE_HEAD_ALLOWANCE_Y,
+            candleBounds.width,
+            candleBounds.height + AIRDROP_SPAWN_CANDLE_HEAD_ALLOWANCE_Y,
+          );
+        }
+        if (!candleBounds || candleBounds.top >= AIRDROP_SPAWN_CANDLE_Y_THRESHOLD) {
           continue;
         }
-        if (Math.abs(spawnX - candleObject.x) < AIRDROP_SPAWN_MIN_CANDLE_X_DISTANCE) {
+        if (PhaserLib.Geom.Intersects.RectangleToRectangle(airdropSpawnBandBounds, candleBounds)) {
           return false;
         }
       }
       return true;
+    }
+
+    private isCandleSpawnXSafeFromAirdropLane(candleSpawnX: number): boolean {
+      if (!this.activeAirdrop) {
+        return true;
+      }
+      const airdropObject = this.activeAirdrop.gameObject;
+      const airdropTopY = airdropObject.y - airdropObject.displayHeight / 2;
+      if (airdropTopY >= AIRDROP_SPAWN_CANDLE_Y_THRESHOLD) {
+        return true;
+      }
+      const minSafeDistanceX = AIRDROP_VISUAL_WIDTH / 2 + CANDLE_WIDTH / 2 + AIRDROP_SPAWN_FOOTPRINT_PADDING_X;
+      return Math.abs(candleSpawnX - airdropObject.x) > minSafeDistanceX;
     }
 
     private overlaps(
@@ -620,21 +688,23 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
     private showAirdropPickupFeedback() {
       const feedbackText = this.add
-        .text(this.scale.width / 2, 52, "AIRDROP", {
+        .text(this.scale.width / 2, 54, "AIRDROP ON", {
           fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#8deaff",
+          fontSize: "11px",
+          color: "#ffffff",
+          fontStyle: "bold",
         })
         .setOrigin(0.5)
         .setDepth(130)
-        .setAlpha(0.9)
+        .setAlpha(1)
         .setScale(1);
 
       this.tweens.add({
         targets: feedbackText,
         alpha: 0,
-        y: 42,
-        duration: 260,
+        y: 46,
+        duration: 620,
+        ease: "Sine.easeOut",
         onComplete: () => feedbackText.destroy(),
       });
     }

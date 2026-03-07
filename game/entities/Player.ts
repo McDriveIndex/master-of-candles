@@ -3,7 +3,7 @@ import type Phaser from "phaser";
 const PLAYER_WIDTH = 20;
 const PLAYER_HEIGHT = 12;
 const HITBOX_SCALE = 0.85;
-const PLAYER_VISUAL_HEIGHT = 24;
+const PLAYER_VISUAL_HEIGHT = 36;
 const PLAYER_VISUAL_Y_OFFSET = 7;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -70,6 +70,19 @@ export class Player {
     this.visual.x = this.sprite.x;
     this.visual.y = this.sprite.y + PLAYER_HEIGHT / 2 + PLAYER_VISUAL_Y_OFFSET;
     this.visual.setDepth(this.sprite.depth);
+  }
+
+  setVisualTexture(textureKey: string): void {
+    if (!this.visual) {
+      return;
+    }
+    if (!this.visual.scene.textures.exists(textureKey)) {
+      return;
+    }
+    if (this.visual.texture.key === textureKey) {
+      return;
+    }
+    this.visual.setTexture(textureKey);
   }
 
   destroy(): void {

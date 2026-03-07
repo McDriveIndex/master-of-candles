@@ -2,9 +2,13 @@ import type Phaser from "phaser";
 
 export const AIRDROP_WIDTH = 14;
 export const AIRDROP_HEIGHT = 14;
+export const AIRDROP_VISUAL_WIDTH = 26;
+export const AIRDROP_VISUAL_HEIGHT = 39;
 export const AIRDROP_FALL_SPEED = 90;
 export const AIRDROP_TTL_MS = 3000;
 const AIRDROP_OUT_OF_BOUNDS_MARGIN = 4;
+const AIRDROP_BODY_OFFSET_X = (AIRDROP_VISUAL_WIDTH - AIRDROP_WIDTH) / 2;
+const AIRDROP_BODY_OFFSET_Y = AIRDROP_VISUAL_HEIGHT - AIRDROP_HEIGHT;
 
 export class Airdrop {
   private readonly sprite: Phaser.Physics.Arcade.Image;
@@ -23,6 +27,7 @@ export class Airdrop {
     ttlMs: number = AIRDROP_TTL_MS,
   ) {
     this.sprite = scene.physics.add.image(x, y, "airdrop");
+    this.sprite.setDisplaySize(AIRDROP_VISUAL_WIDTH, AIRDROP_VISUAL_HEIGHT);
     this.sprite.setAlpha(1);
     this.speedPxPerSec = speed;
 
@@ -30,6 +35,8 @@ export class Airdrop {
     this.body.moves = true;
     this.body.enable = true;
     this.body.setAllowGravity(false);
+    this.body.setSize(AIRDROP_WIDTH, AIRDROP_HEIGHT);
+    this.body.setOffset(AIRDROP_BODY_OFFSET_X, AIRDROP_BODY_OFFSET_Y);
     this.blinkTween = scene.tweens.add({
       targets: this.sprite,
       alpha: 0.25,
