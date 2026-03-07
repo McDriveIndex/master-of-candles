@@ -38,6 +38,10 @@ const CANDLE_BODY_TEXTURE_KEY = "candle-body";
 const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
 const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
 const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
+const HUD_MARGIN_X = 10;
+const HUD_TOP_Y = 8;
+const HUD_SECONDARY_Y = 20;
+const HUD_FADE_IN_DURATION_MS = 240;
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -64,6 +68,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
     private globalBestText?: Phaser.GameObjects.Text;
+    private hudFadeTween?: Phaser.Tweens.Tween;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
     private difficultyController?: DifficultyController;
     private hasAirdrop = false;
@@ -150,32 +155,50 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
       this.airdropGroup = this.physics.add.group();
 
-      this.timerText = this.add
-        .text(8, 8, `RUN: ${this.formatMs(0)}`, {
+      const timerText = this.add
+        .text(HUD_MARGIN_X, HUD_TOP_Y, `RUN: ${this.formatMs(0)}`, {
           fontFamily: "monospace",
-          fontSize: "10px",
+          fontSize: "11px",
+          fontStyle: "bold",
           color: "#f5f5f5",
         })
         .setOrigin(0, 0);
-      this.timerText.setDepth(120);
+      timerText.setShadow(0, 1, "#000000", 0.85, false, true);
+      timerText.setDepth(120);
+      this.timerText = timerText;
 
-      this.bestText = this.add
-        .text(width - 8, 8, `PB: ${this.formatMs(this.bestMs)}`, {
+      const bestText = this.add
+        .text(width - HUD_MARGIN_X, HUD_TOP_Y, `PB: ${this.formatMs(this.bestMs)}`, {
           fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#d4d4d4",
+          fontSize: "9px",
+          color: "#cfcfcf",
         })
         .setOrigin(1, 0);
-      this.bestText.setDepth(120);
+      bestText.setShadow(0, 1, "#000000", 0.85, false, true);
+      bestText.setDepth(120);
+      this.bestText = bestText;
 
-      this.globalBestText = this.add
-        .text(width - 8, 20, "WORLD: —", {
+      const globalBestText = this.add
+        .text(width - HUD_MARGIN_X, HUD_SECONDARY_Y, "WORLD: —", {
           fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#d4d4d4",
+          fontSize: "9px",
+          color: "#b4b4b4",
         })
         .setOrigin(1, 0);
-      this.globalBestText.setDepth(120);
+      globalBestText.setShadow(0, 1, "#000000", 0.85, false, true);
+      globalBestText.setDepth(120);
+      this.globalBestText = globalBestText;
+      const hudElements = [timerText, bestText, globalBestText];
+      for (const hudElement of hudElements) {
+        hudElement.setAlpha(0);
+      }
+      this.hudFadeTween = this.tweens.add({
+        targets: hudElements,
+        alpha: 1,
+        duration: HUD_FADE_IN_DURATION_MS,
+        ease: "Sine.easeOut",
+        stagger: 40,
+      });
       void this.loadGlobalBest();
 
       this.timerUpdateEvent = this.time.addEvent({
@@ -215,6 +238,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.spawnTimer = undefined;
         this.timerUpdateEvent?.remove();
         this.timerUpdateEvent = undefined;
+        this.hudFadeTween?.remove();
+        this.hudFadeTween = undefined;
         this.deathDelayEvent?.remove();
         this.deathDelayEvent = undefined;
         this.lastSpawnX = null;

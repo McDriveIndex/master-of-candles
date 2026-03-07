@@ -5,6 +5,18 @@ import { PLAY_SCENE_KEY } from "./PlayScene";
 export const GAME_OVER_SCENE_KEY = "GameOverScene";
 const NICKNAME_STORAGE_KEY = "moc_nickname";
 const NICKNAME_REGEX = /^[A-Za-z0-9_]{1,16}$/;
+const TITLE_Y = 34;
+const RUN_Y = 55;
+const RESTART_Y = 74;
+const TOP5_HEADER_Y = 92;
+const TOP5_START_Y = 104;
+const CONTEXT_HEADER_Y = 158;
+const CONTEXT_START_Y = 170;
+const LEADERBOARD_ROW_SPACING = 10;
+const LEADERBOARD_NICKNAME_WIDTH = 16;
+const LEADERBOARD_TIME_WIDTH = 7;
+const LEADERBOARD_ROW_TOTAL_CHARS = 2 + 1 + LEADERBOARD_NICKNAME_WIDTH + 1 + LEADERBOARD_TIME_WIDTH;
+const LEADERBOARD_BLOCK_WIDTH = 152;
 
 type GameOverData = {
   runTimeMs?: number;
@@ -13,11 +25,13 @@ type GameOverData = {
 
 export function createGameOverScene(PhaserLib: typeof Phaser) {
   return class GameOverScene extends PhaserLib.Scene {
-    private top10Text?: Phaser.GameObjects.Text;
-    private rankText?: Phaser.GameObjects.Text;
-    private aroundHeaderText?: Phaser.GameObjects.Text;
+    private contextHeaderText?: Phaser.GameObjects.Text;
     private statusText?: Phaser.GameObjects.Text;
-    private aroundRowTexts: Phaser.GameObjects.Text[] = [];
+    private top5RowTexts: Phaser.GameObjects.Text[] = [];
+    private contextRowTexts: Phaser.GameObjects.Text[] = [];
+    private titleGlowTween?: Phaser.Tweens.Tween;
+    private restartPromptTween?: Phaser.Tweens.Tween;
+    private playerHighlightTween?: Phaser.Tweens.Tween;
 
     constructor() {
       super(GAME_OVER_SCENE_KEY);
@@ -26,23 +40,30 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     create(data?: GameOverData) {
       const { width, height } = this.scale;
       const rawRun = data?.runTimeMs;
-      const rawBest = data?.bestMs;
       const runTimeMs = typeof rawRun === "number" && Number.isFinite(rawRun) && rawRun >= 0 ? rawRun : 0;
-      const bestMs = typeof rawBest === "number" && Number.isFinite(rawBest) && rawBest >= 0 ? rawBest : 0;
 
       this.cameras.main.setBackgroundColor("#000000");
 
-      this.add
-        .text(width / 2, height / 2 - 8, "GAME OVER", {
+      const titleText = this.add
+        .text(width / 2, TITLE_Y, "GAME OVER", {
           fontFamily: "monospace",
-          fontSize: "14px",
-          color: "#f5f5f5",
+          fontSize: "24px",
+          color: "#af1a26",
           align: "center",
         })
+        .setShadow(0, 0, "#4d0000", 4, true, true)
         .setOrigin(0.5);
+      this.titleGlowTween = this.tweens.add({
+        targets: titleText,
+        alpha: 0.9,
+        duration: 760,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
 
       this.add
-        .text(width / 2, height / 2 + 10, `RUN: ${this.formatMs(runTimeMs)}`, {
+        .text(width / 2, RUN_Y, `RUN: ${this.formatMs(runTimeMs)}`, {
           fontFamily: "monospace",
           fontSize: "10px",
           color: "#f5f5f5",
@@ -50,53 +71,44 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         })
         .setOrigin(0.5);
 
-      this.add
-        .text(width / 2, height / 2 + 26, `PB: ${this.formatMs(bestMs)}`, {
+      const restartText = this.add
+        .text(width / 2, RESTART_Y, "PRESS SPACE TO RESTART", {
           fontFamily: "monospace",
-          fontSize: "10px",
+          fontSize: "9px",
           color: "#d4d4d4",
           align: "center",
         })
         .setOrigin(0.5);
+      this.restartPromptTween = this.tweens.add({
+        targets: restartText,
+        alpha: 0.62,
+        duration: 920,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
 
       this.add
-        .text(width / 2, height / 2 + 48, "PRESS SPACE TO RESTART", {
+        .text(width / 2, TOP5_HEADER_Y, "TOP 5", {
           fontFamily: "monospace",
           fontSize: "10px",
+          color: "#f5f5f5",
+          align: "center",
+        })
+        .setOrigin(0.5, 0);
+
+      this.contextHeaderText = this.add
+        .text(width / 2, CONTEXT_HEADER_Y, "YOUR RANK", {
+          fontFamily: "monospace",
+          fontSize: "9px",
           color: "#d4d4d4",
           align: "center",
         })
-        .setOrigin(0.5);
-
-      this.top10Text = this.add
-        .text(10, 8, "TOP 10:\n—", {
-          fontFamily: "monospace",
-          fontSize: "8px",
-          color: "#f5f5f5",
-          align: "left",
-        })
-        .setOrigin(0, 0);
-
-      this.rankText = this.add
-        .text(10, 88, "YOUR RANK: —", {
-          fontFamily: "monospace",
-          fontSize: "8px",
-          color: "#f5f5f5",
-          align: "left",
-        })
-        .setOrigin(0, 0);
-
-      this.aroundHeaderText = this.add
-        .text(10, 100, "AROUND YOU:", {
-          fontFamily: "monospace",
-          fontSize: "8px",
-          color: "#d4d4d4",
-          align: "left",
-        })
-        .setOrigin(0, 0);
+        .setOrigin(0.5, 0)
+        .setVisible(false);
 
       this.statusText = this.add
-        .text(width / 2, height - 10, "", {
+        .text(width / 2, height - 3, "", {
           fontFamily: "monospace",
           fontSize: "8px",
           color: "#f5f5f5",
@@ -108,6 +120,24 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
 
       this.input.keyboard?.once("keydown-SPACE", () => {
         this.scene.start(PLAY_SCENE_KEY);
+      });
+      this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
+        this.titleGlowTween?.remove();
+        this.titleGlowTween = undefined;
+        this.restartPromptTween?.remove();
+        this.restartPromptTween = undefined;
+        this.playerHighlightTween?.remove();
+        this.playerHighlightTween = undefined;
+        for (const rowText of this.top5RowTexts) {
+          rowText.destroy();
+        }
+        this.top5RowTexts = [];
+        for (const rowText of this.contextRowTexts) {
+          rowText.destroy();
+        }
+        this.contextRowTexts = [];
+        this.contextHeaderText = undefined;
+        this.statusText = undefined;
       });
     }
 
@@ -163,57 +193,143 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     }
 
     private renderLeaderboard(response: SubmitResponse): void {
-      const top10Lines = response.top10.map(
-        (entry) => `${entry.rank}. ${entry.nickname}  ${this.formatMs(entry.scoreMs)}`,
-      );
-      this.top10Text?.setText(`TOP 10:\n${top10Lines.join("\n") || "—"}`);
-      this.rankText?.setText(`YOUR RANK: ${response.yourRank}`);
-      this.renderAroundYou(response.aroundYou, response.yourRank);
+      this.playerHighlightTween?.remove();
+      this.playerHighlightTween = undefined;
+      const top5Entries = response.top10.slice(0, 5);
+      this.renderTop5(top5Entries, response.yourRank);
+      const shouldShowContext = response.yourRank > 5;
+      this.renderRankContext(response.aroundYou, response.yourRank, shouldShowContext);
     }
 
     private renderFallback(): void {
-      this.top10Text?.setText("TOP 10:\n—");
-      this.rankText?.setText("YOUR RANK: —");
-      this.renderAroundYou([], -1);
+      this.playerHighlightTween?.remove();
+      this.playerHighlightTween = undefined;
+      this.renderTop5([], -1);
+      this.renderRankContext([], -1, false);
       this.statusText?.setText("");
     }
 
-    private renderAroundYou(entries: LeaderboardEntry[], yourRank: number): void {
-      for (const rowText of this.aroundRowTexts) {
+    private renderTop5(entries: LeaderboardEntry[], yourRank: number): void {
+      for (const rowText of this.top5RowTexts) {
         rowText.destroy();
       }
-      this.aroundRowTexts = [];
+      this.top5RowTexts = [];
 
       if (!entries.length) {
         const fallback = this.add
-          .text(10, 112, "—", {
+          .text(this.scale.width / 2, TOP5_START_Y, "—", {
             fontFamily: "monospace",
             fontSize: "8px",
             color: "#d4d4d4",
             align: "left",
           })
-          .setOrigin(0, 0);
-        this.aroundRowTexts.push(fallback);
+          .setOrigin(0.5, 0)
+          .setFixedSize(LEADERBOARD_BLOCK_WIDTH, 0);
+        this.top5RowTexts.push(fallback);
         return;
       }
 
       entries.forEach((entry, index) => {
         const isPlayerRow = entry.rank === yourRank;
         const line = this.add
-          .text(10, 112 + index * 10, `${entry.rank}. ${entry.nickname}  ${this.formatMs(entry.scoreMs)}`, {
-            fontFamily: "monospace",
-            fontSize: "8px",
-            color: isPlayerRow ? "#fff2b3" : "#d4d4d4",
-            align: "left",
-          })
-          .setOrigin(0, 0);
+          .text(
+            this.scale.width / 2,
+            TOP5_START_Y + index * LEADERBOARD_ROW_SPACING,
+            this.formatLeaderboardLine(entry),
+            {
+              fontFamily: "monospace",
+              fontSize: "9px",
+              color: isPlayerRow ? "#fff0b0" : "#d4d4d4",
+              align: "left",
+            },
+          )
+          .setOrigin(0.5, 0)
+          .setFixedSize(LEADERBOARD_BLOCK_WIDTH, 0);
 
         if (isPlayerRow) {
-          line.setStroke("#fff2b3", 1);
-          line.setShadow(0, 0, "#fff2b3", 3, true, true);
+          this.applyPlayerHighlight(line);
         }
 
-        this.aroundRowTexts.push(line);
+        this.top5RowTexts.push(line);
+      });
+    }
+
+    private renderRankContext(entries: LeaderboardEntry[], yourRank: number, visible: boolean): void {
+      for (const rowText of this.contextRowTexts) {
+        rowText.destroy();
+      }
+      this.contextRowTexts = [];
+      this.contextHeaderText?.setVisible(visible);
+
+      if (!visible) {
+        return;
+      }
+
+      if (!entries.length) {
+        const fallback = this.add
+          .text(this.scale.width / 2, CONTEXT_START_Y, `RANK ${yourRank > 0 ? yourRank : "—"}`, {
+            fontFamily: "monospace",
+            fontSize: "8px",
+            color: "#d4d4d4",
+            align: "left",
+          })
+          .setOrigin(0.5, 0)
+          .setFixedSize(LEADERBOARD_BLOCK_WIDTH, 0);
+        this.contextRowTexts.push(fallback);
+        return;
+      }
+
+      const playerIndex = entries.findIndex((entry) => entry.rank === yourRank);
+      const rows =
+        playerIndex >= 0
+          ? entries.slice(Math.max(0, playerIndex - 1), playerIndex + 2)
+          : entries.slice(0, 3);
+
+      rows.forEach((entry, index) => {
+        const isPlayerRow = entry.rank === yourRank;
+        const line = this.add
+          .text(
+            this.scale.width / 2,
+            CONTEXT_START_Y + index * LEADERBOARD_ROW_SPACING,
+            this.formatLeaderboardLine(entry),
+            {
+              fontFamily: "monospace",
+              fontSize: "9px",
+              color: isPlayerRow ? "#fff0b0" : "#c2c2c2",
+              align: "left",
+            },
+          )
+          .setOrigin(0.5, 0)
+          .setFixedSize(LEADERBOARD_BLOCK_WIDTH, 0);
+
+        if (isPlayerRow) {
+          this.applyPlayerHighlight(line);
+        }
+
+        this.contextRowTexts.push(line);
+      });
+    }
+
+    private formatLeaderboardLine(entry: LeaderboardEntry): string {
+      const rank = String(entry.rank).padStart(2, " ");
+      const nickname = entry.nickname.slice(0, LEADERBOARD_NICKNAME_WIDTH);
+      const time = this.formatMs(entry.scoreMs);
+      const prefix = `${rank} ${nickname}`;
+      const suffix = ` ${time}`;
+      const fillerLength = Math.max(2, LEADERBOARD_ROW_TOTAL_CHARS - prefix.length - suffix.length);
+      return `${prefix}${".".repeat(fillerLength)}${suffix}`;
+    }
+
+    private applyPlayerHighlight(line: Phaser.GameObjects.Text): void {
+      line.setStroke("#ffe9b8", 1);
+      line.setShadow(0, 0, "#ffe9b8", 1, true, true);
+      this.playerHighlightTween = this.tweens.add({
+        targets: line,
+        alpha: 0.86,
+        duration: 760,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
       });
     }
 
