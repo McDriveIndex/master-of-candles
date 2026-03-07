@@ -5,6 +5,11 @@ export type DifficultyParams = {
   pressureBias: number;
 };
 
+export type VolatilityState = {
+  isVolatilityActive: boolean;
+  volatilityIntensity: number;
+};
+
 type DifficultyConfig = {
   plateauTimeMs: number;
   spawnIntervalStartMs: number;
@@ -79,8 +84,7 @@ export class DifficultyController {
 
   getParams(elapsedMs: number): DifficultyParams {
     this.updateMicroVariation(elapsedMs);
-    const macroFactor = this.getMacroFactor(elapsedMs);
-    const isMacroActive = macroFactor > 0;
+    const { volatilityIntensity: macroFactor, isVolatilityActive: isMacroActive } = this.getVolatilityState(elapsedMs);
 
     if (DEBUG_VOLATILITY) {
       if (isMacroActive && !this.wasMacroActive) {
@@ -133,6 +137,14 @@ export class DifficultyController {
     const pressureBias = clamp(basePressureBias + this.config.macroPressureAddAtPeak * macroFactor, 0, 1);
 
     return { spawnIntervalMs, candleSpeed, heightScale, pressureBias };
+  }
+
+  getVolatilityState(elapsedMs: number): VolatilityState {
+    const volatilityIntensity = this.getMacroFactor(elapsedMs);
+    return {
+      isVolatilityActive: volatilityIntensity > 0,
+      volatilityIntensity,
+    };
   }
 
   private updateMicroVariation(elapsedMs: number) {

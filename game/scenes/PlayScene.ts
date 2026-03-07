@@ -10,7 +10,7 @@ import {
 import { Player } from "../entities/Player";
 import { getLeaderboard } from "../services/leaderboard";
 import { AirdropSpawnerSystem } from "../systems/AirdropSpawnerSystem";
-import { DifficultyController, type DifficultyParams } from "../systems/DifficultyController";
+import { DifficultyController, type DifficultyParams, type VolatilityState } from "../systems/DifficultyController";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
 export const PLAY_SCENE_KEY = "PlayScene";
@@ -45,6 +45,8 @@ const HUD_MARGIN_X = 10;
 const HUD_TOP_Y = 8;
 const HUD_SECONDARY_Y = 20;
 const HUD_FADE_IN_DURATION_MS = 240;
+const VOLATILITY_EVENT_NAME = "moc:volatility-change";
+const VOLATILITY_EVENT_INTENSITY_STEP = 0.05;
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -84,6 +86,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private playerAirdropAssetReady = false;
     private readonly rectA: Phaser.Geom.Rectangle;
     private readonly rectB: Phaser.Geom.Rectangle;
+    private lastDispatchedVolatilityActive = false;
+    private lastDispatchedVolatilityIntensity = 0;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -95,6 +99,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const { width, height } = this.scale;
 
       this.cameras.main.setBackgroundColor("#000000");
+      this.dispatchVolatilityChange({ isVolatilityActive: false, volatilityIntensity: 0 }, true);
 
       this.physics.world.setBounds(0, 0, width, height);
       this.physics.world.setBoundsCollision(true, true, true, true);
@@ -278,16 +283,20 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.difficultyController = undefined;
         this.player?.destroy();
         this.player = undefined;
+        this.dispatchVolatilityChange({ isVolatilityActive: false, volatilityIntensity: 0 }, true);
 
         this.physics?.world?.resume();
       });
     }
 
     update(_time: number, delta: number) {
+      const now = this.nowMs();
+      const elapsedMs = now - this.runStartMs;
+      this.syncVolatilityBridge(elapsedMs);
+
       if (!this.player || !this.movementKeys) {
         return;
       }
-      const now = this.nowMs();
       const autoEnabled = (now - this.runStartMs) >= AIRDROP_AUTO_SPAWN_DELAY_MS;
 
       if (!this.isDying) {
@@ -594,6 +603,39 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         ? PLAYER_PAWN_AIRDROP_TEXTURE_KEY
         : PLAYER_PAWN_TEXTURE_KEY;
       this.player.setVisualTexture(targetTextureKey);
+    }
+
+    private syncVolatilityBridge(elapsedMs: number) {
+      if (!this.difficultyController) {
+        return;
+      }
+
+      const volatilityState = this.difficultyController.getVolatilityState(elapsedMs);
+      this.dispatchVolatilityChange(volatilityState);
+    }
+
+    private dispatchVolatilityChange(volatilityState: VolatilityState, force = false) {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const quantizedIntensity = Math.round(volatilityState.volatilityIntensity / VOLATILITY_EVENT_INTENSITY_STEP)
+        * VOLATILITY_EVENT_INTENSITY_STEP;
+      const activeChanged = this.lastDispatchedVolatilityActive !== volatilityState.isVolatilityActive;
+      const intensityChanged = Math.abs(this.lastDispatchedVolatilityIntensity - quantizedIntensity)
+        >= VOLATILITY_EVENT_INTENSITY_STEP;
+      if (!force && !activeChanged && !intensityChanged) {
+        return;
+      }
+
+      this.lastDispatchedVolatilityActive = volatilityState.isVolatilityActive;
+      this.lastDispatchedVolatilityIntensity = quantizedIntensity;
+      window.dispatchEvent(new CustomEvent(VOLATILITY_EVENT_NAME, {
+        detail: {
+          active: volatilityState.isVolatilityActive,
+          intensity: quantizedIntensity,
+        },
+      }));
     }
 
     private isAirdropSpawnXSafe(spawnX: number): boolean {
