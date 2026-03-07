@@ -8,10 +8,10 @@ const NICKNAME_REGEX = /^[A-Za-z0-9_]{1,16}$/;
 const TITLE_Y = 34;
 const RUN_Y = 55;
 const RESTART_Y = 74;
-const TOP5_HEADER_Y = 92;
-const TOP5_START_Y = 104;
-const CONTEXT_HEADER_Y = 158;
-const CONTEXT_START_Y = 170;
+const TOP5_HEADER_Y = 88;
+const TOP5_START_Y = 100;
+const CONTEXT_HEADER_Y = 154;
+const CONTEXT_START_Y = 166;
 const LEADERBOARD_ROW_SPACING = 10;
 const LEADERBOARD_NICKNAME_WIDTH = 16;
 const LEADERBOARD_TIME_WIDTH = 7;
@@ -108,7 +108,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         .setVisible(false);
 
       this.statusText = this.add
-        .text(width / 2, height - 3, "", {
+        .text(width / 2, height - 6, "", {
           fontFamily: "monospace",
           fontSize: "8px",
           color: "#f5f5f5",

@@ -80,20 +80,24 @@ export async function POST(request: Request) {
     const hasValidNickname = typeof nickname === "string" && NICKNAME_REGEX.test(nickname);
     const nowIso = new Date().toISOString();
 
-    const { count: higherCount, error: higherCountError } = await supabaseServer
-      .from("leaderboard_scores")
-      .select("id", { count: "exact", head: true })
-      .gt("score_ms", scoreMsInt);
+    const [
+      { count: higherCount, error: higherCountError },
+      { count: equalEarlierCount, error: equalEarlierCountError },
+    ] = await Promise.all([
+      supabaseServer
+        .from("leaderboard_scores")
+        .select("id", { count: "exact", head: true })
+        .gt("score_ms", scoreMsInt),
+      supabaseServer
+        .from("leaderboard_scores")
+        .select("id", { count: "exact", head: true })
+        .eq("score_ms", scoreMsInt)
+        .lt("created_at", nowIso),
+    ]);
 
     if (higherCountError) {
       throw higherCountError;
     }
-
-    const { count: equalEarlierCount, error: equalEarlierCountError } = await supabaseServer
-      .from("leaderboard_scores")
-      .select("id", { count: "exact", head: true })
-      .eq("score_ms", scoreMsInt)
-      .lt("created_at", nowIso);
 
     if (equalEarlierCountError) {
       throw equalEarlierCountError;
@@ -120,24 +124,27 @@ export async function POST(request: Request) {
       }
     }
 
-    const topRows = await fetchTopRows(10);
+    const topRows = await fetchTopRows(5);
     const globalBestMs = topRows.length > 0 ? topRows[0].score_ms : null;
     const top10 = mapRowsWithRank(topRows);
 
-    const aroundStartRank = Math.max(1, yourRank - 3);
-    const aroundEndRank = yourRank + 3;
-    const { data: aroundRows, error: aroundError } = await supabaseServer
-      .from("leaderboard_scores")
-      .select("nickname, score_ms, created_at")
-      .order("score_ms", { ascending: false })
-      .order("created_at", { ascending: true })
-      .range(aroundStartRank - 1, aroundEndRank - 1);
+    let aroundYou: LeaderboardEntry[] = [];
+    if (yourRank > 5) {
+      const aroundStartRank = Math.max(1, yourRank - 1);
+      const aroundEndRank = yourRank + 1;
+      const { data: aroundRows, error: aroundError } = await supabaseServer
+        .from("leaderboard_scores")
+        .select("nickname, score_ms, created_at")
+        .order("score_ms", { ascending: false })
+        .order("created_at", { ascending: true })
+        .range(aroundStartRank - 1, aroundEndRank - 1);
 
-    if (aroundError) {
-      throw aroundError;
+      if (aroundError) {
+        throw aroundError;
+      }
+
+      aroundYou = mapRowsWithRank(aroundRows ?? [], aroundStartRank);
     }
-
-    const aroundYou = mapRowsWithRank(aroundRows ?? [], aroundStartRank);
 
     return NextResponse.json({
       globalBestMs,
