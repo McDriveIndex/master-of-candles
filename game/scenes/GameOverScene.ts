@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 import { submitScore, type LeaderboardEntry, type SubmitResponse } from "../services/leaderboard";
-import { toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
+import { readMusicEnabledPreference, toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
 import { PLAY_SCENE_KEY } from "./PlayScene";
 
 export const GAME_OVER_SCENE_KEY = "GameOverScene";
@@ -18,6 +18,8 @@ const LEADERBOARD_NICKNAME_WIDTH = 16;
 const LEADERBOARD_TIME_WIDTH = 7;
 const LEADERBOARD_ROW_TOTAL_CHARS = 2 + 1 + LEADERBOARD_NICKNAME_WIDTH + 1 + LEADERBOARD_TIME_WIDTH;
 const LEADERBOARD_BLOCK_WIDTH = 152;
+const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
+const MENU_LOOP_MUSIC_VOLUME = 0.6;
 
 type GameOverData = {
   runTimeMs?: number;
@@ -31,6 +33,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     private top5RowTexts: Phaser.GameObjects.Text[] = [];
     private contextRowTexts: Phaser.GameObjects.Text[] = [];
     private musicToggleText?: Phaser.GameObjects.Text;
+    private menuLoopMusic?: Phaser.Sound.BaseSound;
     private titleGlowTween?: Phaser.Tweens.Tween;
     private restartPromptTween?: Phaser.Tweens.Tween;
     private playerHighlightTween?: Phaser.Tweens.Tween;
@@ -129,12 +132,15 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       musicToggleText.on("pointerdown", () => {
         toggleMusicEnabledPreference();
         updateMusicToggleText(musicToggleText);
+        this.syncMenuLoopMusicWithPreference();
       });
       updateMusicToggleText(musicToggleText);
+      this.syncMenuLoopMusicWithPreference();
 
       void this.loadLeaderboard(runTimeMs);
 
       this.input.keyboard?.once("keydown-SPACE", () => {
+        this.stopMenuLoopMusic();
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
@@ -146,6 +152,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         this.playerHighlightTween = undefined;
         this.musicToggleText?.removeAllListeners();
         this.musicToggleText = undefined;
+        this.stopMenuLoopMusic();
         for (const rowText of this.top5RowTexts) {
           rowText.destroy();
         }
@@ -161,6 +168,45 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
 
     private formatMs(ms: number): string {
       return `${(ms / 1000).toFixed(2)}s`;
+    }
+
+    private syncMenuLoopMusicWithPreference() {
+      if (!readMusicEnabledPreference()) {
+        this.stopMenuLoopMusic();
+        return;
+      }
+      if (!this.cache.audio.exists(MENU_LOOP_MUSIC_KEY)) {
+        return;
+      }
+
+      if (!this.menuLoopMusic) {
+        const existingMusic = this.sound.get(MENU_LOOP_MUSIC_KEY);
+        this.menuLoopMusic = existingMusic ?? this.sound.add(MENU_LOOP_MUSIC_KEY, {
+          loop: true,
+          volume: MENU_LOOP_MUSIC_VOLUME,
+        });
+      }
+      if (!this.menuLoopMusic.isPlaying) {
+        this.menuLoopMusic.play();
+      }
+    }
+
+    private stopMenuLoopMusic() {
+      const existingMusic = this.sound.get(MENU_LOOP_MUSIC_KEY);
+      if (existingMusic && existingMusic !== this.menuLoopMusic) {
+        if (existingMusic.isPlaying) {
+          existingMusic.stop();
+        }
+        existingMusic.destroy();
+      }
+      if (!this.menuLoopMusic) {
+        return;
+      }
+      if (this.menuLoopMusic.isPlaying) {
+        this.menuLoopMusic.stop();
+      }
+      this.menuLoopMusic.destroy();
+      this.menuLoopMusic = undefined;
     }
 
     private async loadLeaderboard(scoreMs: number): Promise<void> {

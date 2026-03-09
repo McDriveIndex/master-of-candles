@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 
 const MUSIC_ENABLED_STORAGE_KEY = "moc_music_enabled";
-const MUSIC_ENABLED_DEFAULT = true;
+const MUSIC_ENABLED_DEFAULT = false;
 const MUSIC_TOGGLE_ON_COLOR = "#d4d4d4";
 const MUSIC_TOGGLE_OFF_COLOR = "#8a8a8a";
 

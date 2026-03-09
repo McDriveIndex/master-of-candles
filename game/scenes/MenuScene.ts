@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
+import { readMusicEnabledPreference, toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
 import { PLAY_SCENE_KEY } from "./PlayScene";
 
 export const MENU_SCENE_KEY = "MenuScene";
@@ -7,10 +7,14 @@ const MOC_LOGO_TEXTURE_KEY = "moc-logo";
 const MOC_LOGO_TEXTURE_PATH = "/moc_logo.png";
 const GAME_LOOP_MUSIC_KEY = "game-loop-music";
 const GAME_LOOP_MUSIC_PATH = "/assets/audio/music/game_loop.ogg";
+const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
+const MENU_LOOP_MUSIC_PATH = "/assets/audio/music/menu_loop.ogg";
+const MENU_LOOP_MUSIC_VOLUME = 0.6;
 
 export function createMenuScene(PhaserLib: typeof Phaser) {
   return class MenuScene extends PhaserLib.Scene {
     private musicToggleText?: Phaser.GameObjects.Text;
+    private menuLoopMusic?: Phaser.Sound.BaseSound;
 
     constructor() {
       super(MENU_SCENE_KEY);
@@ -87,16 +91,20 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
         });
       };
       const shouldLoadLogo = !this.textures.exists(MOC_LOGO_TEXTURE_KEY);
-      const shouldLoadMusic = !this.cache.audio.exists(GAME_LOOP_MUSIC_KEY);
+      const shouldLoadGameMusic = !this.cache.audio.exists(GAME_LOOP_MUSIC_KEY);
+      const shouldLoadMenuMusic = !this.cache.audio.exists(MENU_LOOP_MUSIC_KEY);
       if (shouldLoadLogo) {
         this.load.image(MOC_LOGO_TEXTURE_KEY, MOC_LOGO_TEXTURE_PATH);
       } else {
         placeLogo();
       }
-      if (shouldLoadMusic) {
+      if (shouldLoadGameMusic) {
         this.load.audio(GAME_LOOP_MUSIC_KEY, GAME_LOOP_MUSIC_PATH);
       }
-      if (shouldLoadLogo || shouldLoadMusic) {
+      if (shouldLoadMenuMusic) {
+        this.load.audio(MENU_LOOP_MUSIC_KEY, MENU_LOOP_MUSIC_PATH);
+      }
+      if (shouldLoadLogo || shouldLoadGameMusic || shouldLoadMenuMusic) {
         this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
           if (!this.scene.isActive()) {
             return;
@@ -104,8 +112,11 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
           if (shouldLoadLogo && this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
             placeLogo();
           }
+          this.syncMenuLoopMusicWithPreference();
         }, this);
         this.load.start();
+      } else {
+        this.syncMenuLoopMusicWithPreference();
       }
 
       const promptText = this.add
@@ -138,16 +149,58 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       musicToggleText.on("pointerdown", () => {
         toggleMusicEnabledPreference();
         updateMusicToggleText(musicToggleText);
+        this.syncMenuLoopMusicWithPreference();
       });
       updateMusicToggleText(musicToggleText);
 
       this.input.keyboard?.once("keydown-SPACE", () => {
+        this.stopMenuLoopMusic();
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
         this.musicToggleText?.removeAllListeners();
         this.musicToggleText = undefined;
+        this.stopMenuLoopMusic();
       });
+    }
+
+    private syncMenuLoopMusicWithPreference() {
+      if (!readMusicEnabledPreference()) {
+        this.stopMenuLoopMusic();
+        return;
+      }
+      if (!this.cache.audio.exists(MENU_LOOP_MUSIC_KEY)) {
+        return;
+      }
+
+      if (!this.menuLoopMusic) {
+        const existingMusic = this.sound.get(MENU_LOOP_MUSIC_KEY);
+        this.menuLoopMusic = existingMusic ?? this.sound.add(MENU_LOOP_MUSIC_KEY, {
+          loop: true,
+          volume: MENU_LOOP_MUSIC_VOLUME,
+        });
+      }
+      if (!this.menuLoopMusic.isPlaying) {
+        this.menuLoopMusic.play();
+      }
+    }
+
+    private stopMenuLoopMusic() {
+      const existingMusic = this.sound.get(MENU_LOOP_MUSIC_KEY);
+      if (existingMusic && existingMusic !== this.menuLoopMusic) {
+        if (existingMusic.isPlaying) {
+          existingMusic.stop();
+        }
+        existingMusic.destroy();
+      }
+      if (!this.menuLoopMusic) {
+        return;
+      }
+      if (this.menuLoopMusic.isPlaying) {
+        this.menuLoopMusic.stop();
+      }
+      this.menuLoopMusic.destroy();
+      this.menuLoopMusic = undefined;
     }
   };
 }

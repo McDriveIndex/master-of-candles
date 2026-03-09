@@ -43,6 +43,7 @@ const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
 const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
 const PLAYER_PAWN_AIRDROP_TEXTURE_KEY = "player_pawn_airdrop";
 const GAME_LOOP_MUSIC_KEY = "game-loop-music";
+const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
 const GAME_LOOP_MUSIC_START_DELAY_MS = 500;
 const GAME_LOOP_MUSIC_VOLUME = 0.6;
 const HUD_MARGIN_X = 10;
@@ -110,6 +111,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       const { width, height } = this.scale;
 
       this.cameras.main.setBackgroundColor("#000000");
+      this.sound.stopByKey(MENU_LOOP_MUSIC_KEY);
       this.dispatchVolatilityChange({ isVolatilityActive: false, volatilityIntensity: 0 }, true);
 
       this.physics.world.setBounds(0, 0, width, height);
@@ -880,6 +882,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!this.scene.isActive() || this.isDying || this.runFinalized || !readMusicEnabledPreference()) {
         return;
       }
+      this.sound.stopByKey(MENU_LOOP_MUSIC_KEY);
       this.ensureRunMusicInstance();
       if (!this.runMusic || this.runMusic.isPlaying) {
         return;
