@@ -4,6 +4,8 @@ import { PLAY_SCENE_KEY } from "./PlayScene";
 export const MENU_SCENE_KEY = "MenuScene";
 const MOC_LOGO_TEXTURE_KEY = "moc-logo";
 const MOC_LOGO_TEXTURE_PATH = "/moc_logo.png";
+const GAME_LOOP_MUSIC_KEY = "game-loop-music";
+const GAME_LOOP_MUSIC_PATH = "/assets/audio/music/game_loop.ogg";
 
 export function createMenuScene(PhaserLib: typeof Phaser) {
   return class MenuScene extends PhaserLib.Scene {
@@ -81,12 +83,22 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
           ease: "Sine.easeInOut",
         });
       };
-      if (this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
-        placeLogo();
-      } else {
+      const shouldLoadLogo = !this.textures.exists(MOC_LOGO_TEXTURE_KEY);
+      const shouldLoadMusic = !this.cache.audio.exists(GAME_LOOP_MUSIC_KEY);
+      if (shouldLoadLogo) {
         this.load.image(MOC_LOGO_TEXTURE_KEY, MOC_LOGO_TEXTURE_PATH);
+      } else {
+        placeLogo();
+      }
+      if (shouldLoadMusic) {
+        this.load.audio(GAME_LOOP_MUSIC_KEY, GAME_LOOP_MUSIC_PATH);
+      }
+      if (shouldLoadLogo || shouldLoadMusic) {
         this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
-          if (this.scene.isActive() && this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
+          if (!this.scene.isActive()) {
+            return;
+          }
+          if (shouldLoadLogo && this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
             placeLogo();
           }
         }, this);
@@ -112,7 +124,7 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       });
 
       this.input.keyboard?.once("keydown-SPACE", () => {
-        this.scene.start(PLAY_SCENE_KEY);
+        this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
     }
   };

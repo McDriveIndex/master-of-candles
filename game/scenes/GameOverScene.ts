@@ -119,7 +119,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       void this.loadLeaderboard(runTimeMs);
 
       this.input.keyboard?.once("keydown-SPACE", () => {
-        this.scene.start(PLAY_SCENE_KEY);
+        this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
         this.titleGlowTween?.remove();

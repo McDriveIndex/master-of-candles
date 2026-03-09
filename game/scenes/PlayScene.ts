@@ -41,6 +41,9 @@ const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
 const CANDLE_GLOSS_TEXTURE_KEY = "candle-gloss";
 const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
 const PLAYER_PAWN_AIRDROP_TEXTURE_KEY = "player_pawn_airdrop";
+const GAME_LOOP_MUSIC_KEY = "game-loop-music";
+const GAME_LOOP_MUSIC_START_DELAY_MS = 500;
+const GAME_LOOP_MUSIC_VOLUME = 0.6;
 const HUD_MARGIN_X = 10;
 const HUD_TOP_Y = 8;
 const HUD_SECONDARY_Y = 20;
@@ -53,6 +56,10 @@ type MovementKeys = {
   right: Phaser.Input.Keyboard.Key;
   a: Phaser.Input.Keyboard.Key;
   d: Phaser.Input.Keyboard.Key;
+};
+
+type PlaySceneData = {
+  startMusic?: boolean;
 };
 
 export function createPlayScene(PhaserLib: typeof Phaser) {
@@ -88,6 +95,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private readonly rectB: Phaser.Geom.Rectangle;
     private lastDispatchedVolatilityActive = false;
     private lastDispatchedVolatilityIntensity = 0;
+    private runMusic?: Phaser.Sound.BaseSound;
+    private runMusicStartDelayEvent?: Phaser.Time.TimerEvent;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -95,7 +104,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.rectB = new PhaserLib.Geom.Rectangle();
     }
 
-    create() {
+    create(data?: PlaySceneData) {
       const { width, height } = this.scale;
 
       this.cameras.main.setBackgroundColor("#000000");
@@ -158,6 +167,9 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
       this.syncPlayerVisualWithAirdropState();
+      if (data?.startMusic) {
+        this.scheduleRunMusicStart();
+      }
       this.candlesGroup = this.add.group();
       this.difficultyController = new DifficultyController();
       this.airdropSpawner = new AirdropSpawnerSystem(this.nowMs());
@@ -226,6 +238,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       }) as MovementKeys | undefined;
 
       const goGameOver = () => {
+        this.stopRunMusic();
         this.deathDelayEvent?.remove();
         this.deathDelayEvent = undefined;
         this.spawnTimer?.remove();
@@ -283,6 +296,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.difficultyController = undefined;
         this.player?.destroy();
         this.player = undefined;
+        this.destroyRunMusic();
         this.dispatchVolatilityChange({ isVolatilityActive: false, volatilityIntensity: 0 }, true);
 
         this.physics?.world?.resume();
@@ -481,6 +495,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.isDying = true;
       this.clearActiveAirdrop(false);
       this.finalizeRun();
+      this.stopRunMusic();
       this.player.stopX();
       this.spawnTimer?.remove();
       this.spawnTimer = undefined;
@@ -818,6 +833,50 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
     private formatMsPrecise(ms: number): string {
       return `${(ms / 1000).toFixed(2)}s`;
+    }
+
+    private scheduleRunMusicStart() {
+      this.runMusicStartDelayEvent?.remove();
+      this.runMusicStartDelayEvent = this.time.delayedCall(GAME_LOOP_MUSIC_START_DELAY_MS, () => {
+        this.runMusicStartDelayEvent = undefined;
+        this.startRunMusicNow();
+      });
+    }
+
+    private ensureRunMusicInstance() {
+      if (this.runMusic || !this.cache.audio.exists(GAME_LOOP_MUSIC_KEY)) {
+        return;
+      }
+      this.runMusic = this.sound.add(GAME_LOOP_MUSIC_KEY, {
+        loop: true,
+        volume: GAME_LOOP_MUSIC_VOLUME,
+      });
+    }
+
+    private startRunMusicNow() {
+      if (!this.scene.isActive() || this.isDying || this.runFinalized) {
+        return;
+      }
+      this.ensureRunMusicInstance();
+      if (!this.runMusic || this.runMusic.isPlaying) {
+        return;
+      }
+      this.runMusic.play();
+    }
+
+    private stopRunMusic() {
+      this.runMusicStartDelayEvent?.remove();
+      this.runMusicStartDelayEvent = undefined;
+      if (!this.runMusic || !this.runMusic.isPlaying) {
+        return;
+      }
+      this.runMusic.stop();
+    }
+
+    private destroyRunMusic() {
+      this.stopRunMusic();
+      this.runMusic?.destroy();
+      this.runMusic = undefined;
     }
   };
 }
