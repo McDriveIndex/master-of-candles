@@ -44,6 +44,12 @@ const PLAYER_PAWN_TEXTURE_KEY = "player_pawn";
 const PLAYER_PAWN_AIRDROP_TEXTURE_KEY = "player_pawn_airdrop";
 const GAME_LOOP_MUSIC_KEY = "game-loop-music";
 const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
+const SFX_DEATH_KEY = "sfx-death";
+const SFX_DEATH_VOLUME = 0.8;
+const SFX_AIRDROP_PICKUP_KEY = "sfx-airdrop-pickup";
+const SFX_AIRDROP_PICKUP_VOLUME = 0.72;
+const SFX_AIRDROP_BREAK_KEY = "sfx-airdrop-break";
+const SFX_AIRDROP_BREAK_VOLUME = 0.78;
 const GAME_LOOP_MUSIC_START_DELAY_MS = 500;
 const GAME_LOOP_MUSIC_VOLUME = 0.6;
 const HUD_MARGIN_X = 10;
@@ -510,6 +516,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       if (this.hasAirdrop) {
         this.hasAirdrop = false;
+        this.playAirdropBreakSfx();
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
         this.syncPlayerVisualWithAirdropState();
         this.destroyCandleByGameObject(candleObject);
@@ -518,6 +525,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       }
 
       this.isDying = true;
+      this.playDeathSfx();
       this.clearActiveAirdrop(false);
       this.finalizeRun();
       this.stopRunMusic();
@@ -592,6 +600,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       if (!this.hasAirdrop) {
         this.hasAirdrop = true;
+        this.playAirdropPickupSfx();
         this.airdropShieldUntilMs = this.time.now + AIRDROP_SAVE_GRACE_MS;
         this.syncPlayerVisualWithAirdropState();
         this.showAirdropPickupFeedback();
@@ -903,6 +912,27 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.stopRunMusic();
       this.runMusic?.destroy();
       this.runMusic = undefined;
+    }
+
+    private playAirdropPickupSfx() {
+      if (!readMusicEnabledPreference() || !this.cache.audio.exists(SFX_AIRDROP_PICKUP_KEY)) {
+        return;
+      }
+      this.sound.play(SFX_AIRDROP_PICKUP_KEY, { volume: SFX_AIRDROP_PICKUP_VOLUME });
+    }
+
+    private playAirdropBreakSfx() {
+      if (!readMusicEnabledPreference() || !this.cache.audio.exists(SFX_AIRDROP_BREAK_KEY)) {
+        return;
+      }
+      this.sound.play(SFX_AIRDROP_BREAK_KEY, { volume: SFX_AIRDROP_BREAK_VOLUME });
+    }
+
+    private playDeathSfx() {
+      if (!readMusicEnabledPreference() || !this.cache.audio.exists(SFX_DEATH_KEY)) {
+        return;
+      }
+      this.sound.play(SFX_DEATH_KEY, { volume: SFX_DEATH_VOLUME });
     }
   };
 }

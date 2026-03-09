@@ -10,6 +10,15 @@ const GAME_LOOP_MUSIC_PATH = "/assets/audio/music/game_loop.ogg";
 const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
 const MENU_LOOP_MUSIC_PATH = "/assets/audio/music/menu_loop.ogg";
 const MENU_LOOP_MUSIC_VOLUME = 0.6;
+const SFX_DEATH_KEY = "sfx-death";
+const SFX_DEATH_PATH = "/assets/audio/sfx/death.ogg";
+const SFX_AIRDROP_PICKUP_KEY = "sfx-airdrop-pickup";
+const SFX_AIRDROP_PICKUP_PATH = "/assets/audio/sfx/airdrop_pickup.ogg";
+const SFX_AIRDROP_BREAK_KEY = "sfx-airdrop-break";
+const SFX_AIRDROP_BREAK_PATH = "/assets/audio/sfx/airdrop_break.ogg";
+const SFX_UI_CONFIRM_KEY = "sfx-ui-confirm";
+const SFX_UI_CONFIRM_PATH = "/assets/audio/sfx/ui_confirm.ogg";
+const SFX_UI_CONFIRM_VOLUME = 0.65;
 
 export function createMenuScene(PhaserLib: typeof Phaser) {
   return class MenuScene extends PhaserLib.Scene {
@@ -93,6 +102,10 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       const shouldLoadLogo = !this.textures.exists(MOC_LOGO_TEXTURE_KEY);
       const shouldLoadGameMusic = !this.cache.audio.exists(GAME_LOOP_MUSIC_KEY);
       const shouldLoadMenuMusic = !this.cache.audio.exists(MENU_LOOP_MUSIC_KEY);
+      const shouldLoadSfxDeath = !this.cache.audio.exists(SFX_DEATH_KEY);
+      const shouldLoadSfxAirdropPickup = !this.cache.audio.exists(SFX_AIRDROP_PICKUP_KEY);
+      const shouldLoadSfxAirdropBreak = !this.cache.audio.exists(SFX_AIRDROP_BREAK_KEY);
+      const shouldLoadSfxUiConfirm = !this.cache.audio.exists(SFX_UI_CONFIRM_KEY);
       if (shouldLoadLogo) {
         this.load.image(MOC_LOGO_TEXTURE_KEY, MOC_LOGO_TEXTURE_PATH);
       } else {
@@ -104,7 +117,27 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       if (shouldLoadMenuMusic) {
         this.load.audio(MENU_LOOP_MUSIC_KEY, MENU_LOOP_MUSIC_PATH);
       }
-      if (shouldLoadLogo || shouldLoadGameMusic || shouldLoadMenuMusic) {
+      if (shouldLoadSfxDeath) {
+        this.load.audio(SFX_DEATH_KEY, SFX_DEATH_PATH);
+      }
+      if (shouldLoadSfxAirdropPickup) {
+        this.load.audio(SFX_AIRDROP_PICKUP_KEY, SFX_AIRDROP_PICKUP_PATH);
+      }
+      if (shouldLoadSfxAirdropBreak) {
+        this.load.audio(SFX_AIRDROP_BREAK_KEY, SFX_AIRDROP_BREAK_PATH);
+      }
+      if (shouldLoadSfxUiConfirm) {
+        this.load.audio(SFX_UI_CONFIRM_KEY, SFX_UI_CONFIRM_PATH);
+      }
+      if (
+        shouldLoadLogo
+        || shouldLoadGameMusic
+        || shouldLoadMenuMusic
+        || shouldLoadSfxDeath
+        || shouldLoadSfxAirdropPickup
+        || shouldLoadSfxAirdropBreak
+        || shouldLoadSfxUiConfirm
+      ) {
         this.load.once(PhaserLib.Loader.Events.COMPLETE, () => {
           if (!this.scene.isActive()) {
             return;
@@ -154,6 +187,7 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       updateMusicToggleText(musicToggleText);
 
       this.input.keyboard?.once("keydown-SPACE", () => {
+        this.playUiConfirmSfx();
         this.stopMenuLoopMusic();
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
@@ -201,6 +235,13 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       }
       this.menuLoopMusic.destroy();
       this.menuLoopMusic = undefined;
+    }
+
+    private playUiConfirmSfx() {
+      if (!readMusicEnabledPreference() || !this.cache.audio.exists(SFX_UI_CONFIRM_KEY)) {
+        return;
+      }
+      this.sound.play(SFX_UI_CONFIRM_KEY, { volume: SFX_UI_CONFIRM_VOLUME });
     }
   };
 }

@@ -20,6 +20,8 @@ const LEADERBOARD_ROW_TOTAL_CHARS = 2 + 1 + LEADERBOARD_NICKNAME_WIDTH + 1 + LEA
 const LEADERBOARD_BLOCK_WIDTH = 152;
 const MENU_LOOP_MUSIC_KEY = "menu-loop-music";
 const MENU_LOOP_MUSIC_VOLUME = 0.6;
+const SFX_UI_CONFIRM_KEY = "sfx-ui-confirm";
+const SFX_UI_CONFIRM_VOLUME = 0.65;
 
 type GameOverData = {
   runTimeMs?: number;
@@ -140,6 +142,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       void this.loadLeaderboard(runTimeMs);
 
       this.input.keyboard?.once("keydown-SPACE", () => {
+        this.playUiConfirmSfx();
         this.stopMenuLoopMusic();
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
@@ -207,6 +210,13 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       }
       this.menuLoopMusic.destroy();
       this.menuLoopMusic = undefined;
+    }
+
+    private playUiConfirmSfx() {
+      if (!readMusicEnabledPreference() || !this.cache.audio.exists(SFX_UI_CONFIRM_KEY)) {
+        return;
+      }
+      this.sound.play(SFX_UI_CONFIRM_KEY, { volume: SFX_UI_CONFIRM_VOLUME });
     }
 
     private async loadLeaderboard(scoreMs: number): Promise<void> {
