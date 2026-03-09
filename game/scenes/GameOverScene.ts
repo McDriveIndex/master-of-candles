@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import { submitScore, type LeaderboardEntry, type SubmitResponse } from "../services/leaderboard";
+import { toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
 import { PLAY_SCENE_KEY } from "./PlayScene";
 
 export const GAME_OVER_SCENE_KEY = "GameOverScene";
@@ -29,6 +30,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     private statusText?: Phaser.GameObjects.Text;
     private top5RowTexts: Phaser.GameObjects.Text[] = [];
     private contextRowTexts: Phaser.GameObjects.Text[] = [];
+    private musicToggleText?: Phaser.GameObjects.Text;
     private titleGlowTween?: Phaser.Tweens.Tween;
     private restartPromptTween?: Phaser.Tweens.Tween;
     private playerHighlightTween?: Phaser.Tweens.Tween;
@@ -115,6 +117,20 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
           align: "center",
         })
         .setOrigin(0.5, 1);
+      const musicToggleText = this.add
+        .text(width - 8, 8, "", {
+          fontFamily: "monospace",
+          fontSize: "8px",
+        })
+        .setOrigin(1, 0)
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true });
+      this.musicToggleText = musicToggleText;
+      musicToggleText.on("pointerdown", () => {
+        toggleMusicEnabledPreference();
+        updateMusicToggleText(musicToggleText);
+      });
+      updateMusicToggleText(musicToggleText);
 
       void this.loadLeaderboard(runTimeMs);
 
@@ -128,6 +144,8 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         this.restartPromptTween = undefined;
         this.playerHighlightTween?.remove();
         this.playerHighlightTween = undefined;
+        this.musicToggleText?.removeAllListeners();
+        this.musicToggleText = undefined;
         for (const rowText of this.top5RowTexts) {
           rowText.destroy();
         }

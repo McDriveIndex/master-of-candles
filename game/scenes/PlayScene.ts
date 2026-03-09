@@ -11,6 +11,7 @@ import { Player } from "../entities/Player";
 import { getLeaderboard } from "../services/leaderboard";
 import { AirdropSpawnerSystem } from "../systems/AirdropSpawnerSystem";
 import { DifficultyController, type DifficultyParams, type VolatilityState } from "../systems/DifficultyController";
+import { readMusicEnabledPreference, toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
 import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
 export const PLAY_SCENE_KEY = "PlayScene";
@@ -80,6 +81,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private timerText?: Phaser.GameObjects.Text;
     private bestText?: Phaser.GameObjects.Text;
     private globalBestText?: Phaser.GameObjects.Text;
+    private musicToggleText?: Phaser.GameObjects.Text;
     private hudFadeTween?: Phaser.Tweens.Tween;
     private timerUpdateEvent?: Phaser.Time.TimerEvent;
     private difficultyController?: DifficultyController;
@@ -167,7 +169,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.runStartMs = this.nowMs();
       this.player.gameObject.setDepth(20);
       this.syncPlayerVisualWithAirdropState();
-      if (data?.startMusic) {
+      if (data?.startMusic && readMusicEnabledPreference()) {
         this.scheduleRunMusicStart();
       }
       this.candlesGroup = this.add.group();
@@ -208,6 +210,25 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       globalBestText.setShadow(0, 1, "#000000", 0.85, false, true);
       globalBestText.setDepth(120);
       this.globalBestText = globalBestText;
+      const musicToggleText = this.add
+        .text(width - HUD_MARGIN_X, 32, "", {
+          fontFamily: "monospace",
+          fontSize: "8px",
+        })
+        .setOrigin(1, 0)
+        .setDepth(120)
+        .setInteractive({ useHandCursor: true });
+      this.musicToggleText = musicToggleText;
+      musicToggleText.on("pointerdown", () => {
+        const enabled = toggleMusicEnabledPreference();
+        updateMusicToggleText(musicToggleText);
+        if (enabled) {
+          this.startRunMusicNow();
+        } else {
+          this.stopRunMusic();
+        }
+      });
+      updateMusicToggleText(musicToggleText);
       const hudElements = [timerText, bestText, globalBestText];
       for (const hudElement of hudElements) {
         hudElement.setAlpha(0);
@@ -293,6 +314,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.timerText = undefined;
         this.bestText = undefined;
         this.globalBestText = undefined;
+        this.musicToggleText?.removeAllListeners();
+        this.musicToggleText = undefined;
         this.difficultyController = undefined;
         this.player?.destroy();
         this.player = undefined;
@@ -854,7 +877,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     }
 
     private startRunMusicNow() {
-      if (!this.scene.isActive() || this.isDying || this.runFinalized) {
+      if (!this.scene.isActive() || this.isDying || this.runFinalized || !readMusicEnabledPreference()) {
         return;
       }
       this.ensureRunMusicInstance();

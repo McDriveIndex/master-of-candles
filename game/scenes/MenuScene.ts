@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { toggleMusicEnabledPreference, updateMusicToggleText } from "../systems/musicPreference";
 import { PLAY_SCENE_KEY } from "./PlayScene";
 
 export const MENU_SCENE_KEY = "MenuScene";
@@ -9,6 +10,8 @@ const GAME_LOOP_MUSIC_PATH = "/assets/audio/music/game_loop.ogg";
 
 export function createMenuScene(PhaserLib: typeof Phaser) {
   return class MenuScene extends PhaserLib.Scene {
+    private musicToggleText?: Phaser.GameObjects.Text;
+
     constructor() {
       super(MENU_SCENE_KEY);
     }
@@ -123,8 +126,27 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
         ease: "Sine.easeInOut",
       });
 
+      const musicToggleText = this.add
+        .text(width - 8, 8, "", {
+          fontFamily: "monospace",
+          fontSize: "8px",
+        })
+        .setOrigin(1, 0)
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true });
+      this.musicToggleText = musicToggleText;
+      musicToggleText.on("pointerdown", () => {
+        toggleMusicEnabledPreference();
+        updateMusicToggleText(musicToggleText);
+      });
+      updateMusicToggleText(musicToggleText);
+
       this.input.keyboard?.once("keydown-SPACE", () => {
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
+      });
+      this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
+        this.musicToggleText?.removeAllListeners();
+        this.musicToggleText = undefined;
       });
     }
   };
