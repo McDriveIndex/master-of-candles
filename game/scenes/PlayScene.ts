@@ -16,6 +16,10 @@ import { GAME_OVER_SCENE_KEY } from "./GameOverScene";
 
 export const PLAY_SCENE_KEY = "PlayScene";
 const PERSONAL_BEST_STORAGE_KEY = "moc_personal_best_ms";
+const CONTROLS_HINT_STORAGE_KEY = "moc_controls_hint_seen";
+const CONTROLS_HINT_DURATION_MS = 2_000;
+const CONTROLS_HINT_Y_RATIO = 0.58;
+const CONTROLS_HINT_TEXT = "MOVE: \u2190 \u2192 / A D\nRESTART: SPACE";
 
 const PLAYER_SPEED = 120;
 const MIN_SPAWN_DISTANCE = 28;
@@ -108,6 +112,8 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private runMusic?: Phaser.Sound.BaseSound;
     private runMusicStartDelayEvent?: Phaser.Time.TimerEvent;
     private firstAirdropAutoDelayMs = FIRST_AIRDROP_AUTO_DELAY_MAX_MS;
+    private controlsHintText?: Phaser.GameObjects.Text;
+    private controlsHintHideEvent?: Phaser.Time.TimerEvent;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -271,6 +277,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         a: PhaserLib.Input.Keyboard.KeyCodes.A,
         d: PhaserLib.Input.Keyboard.KeyCodes.D,
       }) as MovementKeys | undefined;
+      this.showControlsHintIfFirstRun();
 
       const goGameOver = () => {
         this.stopRunMusic();
@@ -286,14 +293,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
 
       this.input.keyboard?.once("keydown-ESC", goGameOver);
       this.input.keyboard?.once("keydown-SPACE", goGameOver);
-      // Temporary debug shortcut for M17 testing: force an immediate airdrop spawn via normal flow.
-      const debugSpawnAirdrop = () => {
-        if (this.isDying) {
-          return;
-        }
-        this.spawnAirdrop();
-      };
-      this.input.keyboard?.on("keydown-P", debugSpawnAirdrop);
 
       this.scheduleNextSpawn();
 
@@ -306,6 +305,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
         this.hudFadeTween = undefined;
         this.deathDelayEvent?.remove();
         this.deathDelayEvent = undefined;
+        this.controlsHintHideEvent?.remove();
+        this.controlsHintHideEvent = undefined;
+        this.controlsHintText?.destroy();
+        this.controlsHintText = undefined;
         this.lastSpawnX = null;
         this.isDying = false;
         this.cameras?.main?.off(
@@ -313,7 +316,6 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
           this.onDeathFadeOutComplete,
           this,
         );
-        this.input.keyboard?.off("keydown-P", debugSpawnAirdrop);
 
         for (const candle of this.candles) {
           candle.destroy();
@@ -353,6 +355,9 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!this.isDying) {
         const moveLeft = this.movementKeys.left.isDown || this.movementKeys.a.isDown;
         const moveRight = this.movementKeys.right.isDown || this.movementKeys.d.isDown;
+        if (moveLeft !== moveRight) {
+          this.hideControlsHint();
+        }
 
         // If both directions are pressed together, stop to avoid conflicting input.
         if (moveLeft === moveRight) {
@@ -828,6 +833,70 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
           return;
         }
         window.localStorage.setItem(PERSONAL_BEST_STORAGE_KEY, String(ms));
+      } catch {
+        // Ignore storage errors to keep gameplay stable.
+      }
+    }
+
+    private showControlsHintIfFirstRun() {
+      if (this.controlsHintText || !this.shouldShowControlsHint()) {
+        return;
+      }
+
+      this.markControlsHintSeen();
+      this.controlsHintText = this.add
+        .text(this.scale.width / 2, this.scale.height * CONTROLS_HINT_Y_RATIO, CONTROLS_HINT_TEXT, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#f2f2f2",
+          align: "center",
+          lineSpacing: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(125);
+      this.controlsHintText.setShadow(0, 1, "#000000", 0.9, false, true);
+
+      this.controlsHintHideEvent = this.time.delayedCall(CONTROLS_HINT_DURATION_MS, () => {
+        this.controlsHintHideEvent = undefined;
+        this.hideControlsHint();
+      });
+    }
+
+    private hideControlsHint() {
+      this.controlsHintHideEvent?.remove();
+      this.controlsHintHideEvent = undefined;
+      const hintText = this.controlsHintText;
+      if (!hintText) {
+        return;
+      }
+      this.controlsHintText = undefined;
+      this.tweens.add({
+        targets: hintText,
+        alpha: 0,
+        y: hintText.y - 6,
+        duration: 180,
+        ease: "Sine.easeOut",
+        onComplete: () => hintText.destroy(),
+      });
+    }
+
+    private shouldShowControlsHint(): boolean {
+      try {
+        if (typeof window === "undefined") {
+          return false;
+        }
+        return window.sessionStorage.getItem(CONTROLS_HINT_STORAGE_KEY) !== "1";
+      } catch {
+        return false;
+      }
+    }
+
+    private markControlsHintSeen(): void {
+      try {
+        if (typeof window === "undefined") {
+          return;
+        }
+        window.sessionStorage.setItem(CONTROLS_HINT_STORAGE_KEY, "1");
       } catch {
         // Ignore storage errors to keep gameplay stable.
       }

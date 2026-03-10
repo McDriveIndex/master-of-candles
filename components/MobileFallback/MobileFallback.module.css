@@ -1,0 +1,59 @@
+.wrapper {
+  position: relative;
+  width: min(94vw, 680px);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.centerFade {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(78%, 500px);
+  height: min(54%, 240px);
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(
+      78% 74% at 50% 50%,
+      rgb(0 0 0 / 96%) 0%,
+      rgb(0 0 0 / 90%) 34%,
+      rgb(0 0 0 / 64%) 56%,
+      rgb(0 0 0 / 24%) 76%,
+      rgb(0 0 0 / 0%) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 10%) 0%,
+      rgb(0 0 0 / 0%) 28%,
+      rgb(0 0 0 / 0%) 64%,
+      rgb(0 0 0 / 42%) 88%,
+      rgb(0 0 0 / 68%) 100%
+    );
+  filter: blur(1px);
+  z-index: 0;
+}
+
+.signal {
+  position: relative;
+  width: min(78%, 460px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+}
+
+.messageImage {
+  position: relative;
+  width: min(100%, 430px);
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  z-index: 1;
+}
