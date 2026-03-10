@@ -35,7 +35,8 @@ const AIRDROP_SPAWN_CANDLE_HEAD_ALLOWANCE_Y = 10;
 const AIRDROP_SPAWN_ATTEMPTS = 8;
 const PRESSURE_OFFSET_RANGE = 50;
 const PRESSURE_MIN_PLAYER_OFFSET = 14;
-const AIRDROP_AUTO_SPAWN_DELAY_MS = 60_000;
+const FIRST_AIRDROP_AUTO_DELAY_MIN_MS = 55_000;
+const FIRST_AIRDROP_AUTO_DELAY_MAX_MS = 65_000;
 const AIRDROP_TEXTURE_KEY = "airdrop";
 const CANDLE_BODY_TEXTURE_KEY = "candle-body";
 const CANDLE_WICK_TEXTURE_KEY = "candle-wick";
@@ -106,6 +107,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
     private lastDispatchedVolatilityIntensity = 0;
     private runMusic?: Phaser.Sound.BaseSound;
     private runMusicStartDelayEvent?: Phaser.Time.TimerEvent;
+    private firstAirdropAutoDelayMs = FIRST_AIRDROP_AUTO_DELAY_MAX_MS;
 
     constructor() {
       super(PLAY_SCENE_KEY);
@@ -175,6 +177,10 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       this.airdropShieldUntilMs = 0;
       this.bestMs = this.loadBestMs();
       this.runStartMs = this.nowMs();
+      this.firstAirdropAutoDelayMs = PhaserLib.Math.Between(
+        FIRST_AIRDROP_AUTO_DELAY_MIN_MS,
+        FIRST_AIRDROP_AUTO_DELAY_MAX_MS,
+      );
       this.player.gameObject.setDepth(20);
       this.syncPlayerVisualWithAirdropState();
       if (data?.startMusic && readMusicEnabledPreference()) {
@@ -342,7 +348,7 @@ export function createPlayScene(PhaserLib: typeof Phaser) {
       if (!this.player || !this.movementKeys) {
         return;
       }
-      const autoEnabled = (now - this.runStartMs) >= AIRDROP_AUTO_SPAWN_DELAY_MS;
+      const autoEnabled = (now - this.runStartMs) >= this.firstAirdropAutoDelayMs;
 
       if (!this.isDying) {
         const moveLeft = this.movementKeys.left.isDown || this.movementKeys.a.isDown;

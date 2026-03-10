@@ -37,27 +37,27 @@ type DifficultyConfig = {
 };
 
 const DEFAULT_CONFIG: DifficultyConfig = {
-  plateauTimeMs: 120_000,
-  spawnIntervalStartMs: 720,
-  spawnIntervalMinMs: 300,
-  candleSpeedStart: 120,
-  candleSpeedMax: 205,
+  plateauTimeMs: 112_000,
+  spawnIntervalStartMs: 710,
+  spawnIntervalMinMs: 292,
+  candleSpeedStart: 122,
+  candleSpeedMax: 212,
   maxHeightScale: 1.1,
   microAmplitudeMin: 0.12,
-  microAmplitudeMax: 0.15,
-  microDurationMinMs: 800,
-  microDurationMaxMs: 1800,
-  microCooldownMinMs: 4000,
-  microCooldownMaxMs: 6000,
-  basePressureMaxProbability: 0.55,
-  macroCycleMinMs: 45_000,
-  macroCycleMaxMs: 60_000,
-  macroPeakDurationMinMs: 8_000,
-  macroPeakDurationMaxMs: 12_000,
-  macroRampMs: 1_400,
-  macroSpawnMultiplierAtPeak: 0.74,
-  macroSpeedMultiplierAtPeak: 1.22,
-  macroPressureAddAtPeak: 0.14,
+  microAmplitudeMax: 0.155,
+  microDurationMinMs: 900,
+  microDurationMaxMs: 2_000,
+  microCooldownMinMs: 3_800,
+  microCooldownMaxMs: 5_600,
+  basePressureMaxProbability: 0.58,
+  macroCycleMinMs: 40_000,
+  macroCycleMaxMs: 55_000,
+  macroPeakDurationMinMs: 9_000,
+  macroPeakDurationMaxMs: 13_000,
+  macroRampMs: 1_250,
+  macroSpawnMultiplierAtPeak: 0.71,
+  macroSpeedMultiplierAtPeak: 1.25,
+  macroPressureAddAtPeak: 0.16,
   minAbsoluteSpawnIntervalMs: 260,
   maxAbsoluteCandleSpeed: 240,
 };
@@ -167,7 +167,7 @@ export class DifficultyController {
     }
 
     const amplitude = randomRange(this.config.microAmplitudeMin, this.config.microAmplitudeMax);
-    const direction = Math.random() < 0.65 ? 1 : -1;
+    const direction = Math.random() < 0.69 ? 1 : -1;
     this.microMultiplier = 1 + amplitude * direction;
     this.microUntilMs = elapsedMs + randomRange(
       this.config.microDurationMinMs,
