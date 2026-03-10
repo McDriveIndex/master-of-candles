@@ -106,10 +106,23 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
       const shouldLoadSfxAirdropPickup = !this.cache.audio.exists(SFX_AIRDROP_PICKUP_KEY);
       const shouldLoadSfxAirdropBreak = !this.cache.audio.exists(SFX_AIRDROP_BREAK_KEY);
       const shouldLoadSfxUiConfirm = !this.cache.audio.exists(SFX_UI_CONFIRM_KEY);
+      let logoPlaced = false;
+      const tryPlaceLogo = () => {
+        if (
+          logoPlaced
+          || !this.scene.isActive()
+          || !this.textures.exists(MOC_LOGO_TEXTURE_KEY)
+        ) {
+          return;
+        }
+        placeLogo();
+        logoPlaced = true;
+      };
       if (shouldLoadLogo) {
         this.load.image(MOC_LOGO_TEXTURE_KEY, MOC_LOGO_TEXTURE_PATH);
+        this.load.once(`filecomplete-image-${MOC_LOGO_TEXTURE_KEY}`, tryPlaceLogo, this);
       } else {
-        placeLogo();
+        tryPlaceLogo();
       }
       if (shouldLoadGameMusic) {
         this.load.audio(GAME_LOOP_MUSIC_KEY, GAME_LOOP_MUSIC_PATH);
@@ -142,13 +155,12 @@ export function createMenuScene(PhaserLib: typeof Phaser) {
           if (!this.scene.isActive()) {
             return;
           }
-          if (shouldLoadLogo && this.textures.exists(MOC_LOGO_TEXTURE_KEY)) {
-            placeLogo();
-          }
+          tryPlaceLogo();
           this.syncMenuLoopMusicWithPreference();
         }, this);
         this.load.start();
       } else {
+        tryPlaceLogo();
         this.syncMenuLoopMusicWithPreference();
       }
 
