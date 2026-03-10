@@ -99,8 +99,7 @@ export class DifficultyController {
     }
     this.wasMacroActive = isMacroActive;
 
-    const t = clamp(elapsedMs / this.config.plateauTimeMs, 0, 1);
-    const progress = 1 - (1 - t) * (1 - t);
+    const progress = this.getDifficultyProgress(elapsedMs);
 
     const baseSpawnInterval = lerp(
       this.config.spawnIntervalStartMs,
@@ -167,12 +166,20 @@ export class DifficultyController {
     }
 
     const amplitude = randomRange(this.config.microAmplitudeMin, this.config.microAmplitudeMax);
+    const difficulty = this.getDifficultyProgress(elapsedMs);
+    const amplitudeScale = clamp(difficulty * 1.5, 0.25, 1);
+    const scaledAmplitude = amplitude * amplitudeScale;
     const direction = Math.random() < 0.69 ? 1 : -1;
-    this.microMultiplier = 1 + amplitude * direction;
+    this.microMultiplier = 1 + scaledAmplitude * direction;
     this.microUntilMs = elapsedMs + randomRange(
       this.config.microDurationMinMs,
       this.config.microDurationMaxMs,
     );
+  }
+
+  private getDifficultyProgress(elapsedMs: number): number {
+    const t = clamp(elapsedMs / this.config.plateauTimeMs, 0, 1);
+    return 1 - (1 - t) * (1 - t);
   }
 
   private getMacroFactor(elapsedMs: number): number {
