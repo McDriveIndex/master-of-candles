@@ -14,6 +14,8 @@ export class Player {
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.sprite = scene.add.rectangle(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, 0xf7d463);
+    // Keep the physics placeholder permanently hidden; visual rendering is handled by pawn sprites.
+    this.sprite.setVisible(false);
     scene.physics.add.existing(this.sprite, false);
 
     this.body = this.sprite.body as Phaser.Physics.Arcade.Body;
