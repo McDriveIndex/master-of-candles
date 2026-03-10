@@ -13,14 +13,24 @@
   border: 1px solid rgb(198 42 42 / 75%);
   background:
     linear-gradient(180deg, rgb(14 14 14 / 100%), rgb(8 8 8 / 100%)),
-    radial-gradient(130% 130% at 50% 0%, rgb(255 64 64 / 16%), rgb(255 64 64 / 0%) 72%);
+    radial-gradient(130% 130% at 50% 0%, rgb(255 64 64 / 16%), rgb(255 64 64 / 0%) 72%),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 2%) 0,
+      rgb(255 255 255 / 2%) 1px,
+      rgb(255 255 255 / 0%) 1px,
+      rgb(255 255 255 / 0%) 3px
+    );
   box-shadow:
+    0 0 0 1px rgb(255 60 60 / 25%),
     0 12px 30px rgb(0 0 0 / 70%),
-    0 0 20px rgb(170 20 20 / 20%);
+    0 0 20px rgb(170 20 20 / 35%),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
   padding: 16px 14px 14px;
   text-align: center;
   color: #e8e8e8;
-  font-family: var(--font-geist-mono), monospace;
+  font-family: var(--font-pixel), monospace;
+  image-rendering: pixelated;
 }
 
 .title {
