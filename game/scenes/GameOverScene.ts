@@ -10,8 +10,9 @@ const NICKNAME_REQUEST_EVENT_NAME = "moc:ask-nickname";
 const NICKNAME_RESULT_EVENT_NAME = "moc:nickname-result";
 const TITLE_Y = 34;
 const RUN_Y = 55;
-const RESTART_Y = 74;
-const TOP5_HEADER_Y = 88;
+const RESTART_Y = 70;
+const SHARE_Y = RESTART_Y + 10;
+const TOP5_HEADER_Y = SHARE_Y + 8;
 const TOP5_START_Y = 100;
 const CONTEXT_HEADER_Y = 154;
 const CONTEXT_START_Y = 166;
@@ -54,6 +55,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     private titleGlowTween?: Phaser.Tweens.Tween;
     private restartPromptTween?: Phaser.Tweens.Tween;
     private playerHighlightTween?: Phaser.Tweens.Tween;
+    private shareKeyHandler?: () => void;
     private nicknameRequestSeq = 0;
     private pendingNicknameResultHandler?: (event: Event) => void;
     private pendingNicknameResolve?: (nickname: string | null) => void;
@@ -112,6 +114,14 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.add
+        .text(width / 2, SHARE_Y, "PRESS X TO POST ON X", {
+          fontFamily: "monospace",
+          fontSize: "9px",
+          color: "#d4d4d4",
+          align: "center",
+        })
+        .setOrigin(0.5);
 
       this.add
         .text(width / 2, TOP5_HEADER_Y, "TOP 5", {
@@ -173,6 +183,10 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         this.stopMenuLoopMusic();
         this.scene.start(PLAY_SCENE_KEY, { startMusic: true });
       });
+      this.shareKeyHandler = () => {
+        this.openShareIntent(runTimeMs);
+      };
+      this.input.keyboard?.on("keydown-X", this.shareKeyHandler);
       this.events.once(PhaserLib.Scenes.Events.SHUTDOWN, () => {
         this.titleGlowTween?.remove();
         this.titleGlowTween = undefined;
@@ -180,6 +194,10 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         this.restartPromptTween = undefined;
         this.playerHighlightTween?.remove();
         this.playerHighlightTween = undefined;
+        if (this.shareKeyHandler) {
+          this.input.keyboard?.off("keydown-X", this.shareKeyHandler);
+        }
+        this.shareKeyHandler = undefined;
         this.musicToggleText?.removeAllListeners();
         this.musicToggleText = undefined;
         this.stopMenuLoopMusic();
@@ -246,6 +264,22 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         return;
       }
       this.sound.play(SFX_UI_CONFIRM_KEY, { volume: SFX_UI_CONFIRM_VOLUME });
+    }
+
+    private openShareIntent(scoreMs: number): void {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const seconds = (Math.max(0, scoreMs) / 1000).toFixed(2);
+      const text = `🕯️ Master of Candles 🕯️\n\nI survived ${seconds}s 🔥\n\nCan you beat me?`;
+      const shareUrl =
+        "https://twitter.com/intent/tweet?" +
+        new URLSearchParams({
+          text,
+          url: "https://masterofcandles.com",
+        }).toString();
+
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
     }
 
     private async loadLeaderboard(scoreMs: number): Promise<void> {
