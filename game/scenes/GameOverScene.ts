@@ -13,6 +13,7 @@ const TOP5_HEADER_Y = 88;
 const TOP5_START_Y = 100;
 const CONTEXT_HEADER_Y = 154;
 const CONTEXT_START_Y = 166;
+const TOP_PLACEMENT_FEEDBACK_Y = 160;
 const LEADERBOARD_ROW_SPACING = 10;
 const LEADERBOARD_NICKNAME_WIDTH = 16;
 const LEADERBOARD_TIME_WIDTH = 7;
@@ -31,6 +32,7 @@ type GameOverData = {
 export function createGameOverScene(PhaserLib: typeof Phaser) {
   return class GameOverScene extends PhaserLib.Scene {
     private contextHeaderText?: Phaser.GameObjects.Text;
+    private topPlacementFeedbackText?: Phaser.GameObjects.Text;
     private statusText?: Phaser.GameObjects.Text;
     private top5RowTexts: Phaser.GameObjects.Text[] = [];
     private contextRowTexts: Phaser.GameObjects.Text[] = [];
@@ -113,6 +115,15 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         })
         .setOrigin(0.5, 0)
         .setVisible(false);
+      this.topPlacementFeedbackText = this.add
+        .text(width / 2, TOP_PLACEMENT_FEEDBACK_Y, "", {
+          fontFamily: "monospace",
+          fontSize: "9px",
+          color: "#d4d4d4",
+          align: "center",
+        })
+        .setOrigin(0.5, 0)
+        .setVisible(false);
 
       this.statusText = this.add
         .text(width / 2, height - 6, "", {
@@ -165,6 +176,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         }
         this.contextRowTexts = [];
         this.contextHeaderText = undefined;
+        this.topPlacementFeedbackText = undefined;
         this.statusText = undefined;
       });
     }
@@ -273,6 +285,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       this.renderTop5(top5Entries, response.yourRank);
       const shouldShowContext = response.yourRank > 5;
       this.renderRankContext(response.aroundYou, response.yourRank, shouldShowContext);
+      this.renderTopPlacementFeedback(response.yourRank);
     }
 
     private renderFallback(): void {
@@ -280,6 +293,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       this.playerHighlightTween = undefined;
       this.renderTop5([], -1);
       this.renderRankContext([], -1, false);
+      this.renderTopPlacementFeedback(-1);
       this.statusText?.setText("");
     }
 
@@ -382,6 +396,25 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
 
         this.contextRowTexts.push(line);
       });
+    }
+
+    private renderTopPlacementFeedback(yourRank: number): void {
+      const feedback = this.getTopPlacementFeedback(yourRank);
+      if (!feedback) {
+        this.topPlacementFeedbackText?.setText("").setVisible(false);
+        return;
+      }
+      this.topPlacementFeedbackText?.setText(feedback).setVisible(true);
+    }
+
+    private getTopPlacementFeedback(yourRank: number): string | null {
+      if (yourRank === 1) {
+        return "You're the top trader";
+      }
+      if (yourRank >= 2 && yourRank <= 5) {
+        return "Top 5% trader";
+      }
+      return null;
     }
 
     private formatLeaderboardLine(entry: LeaderboardEntry): string {
