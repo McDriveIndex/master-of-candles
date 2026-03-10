@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const NICKNAME_REGEX = /^[A-Za-z0-9_]{1,16}$/;
+const MAX_SUBMISSIONS_PER_WINDOW = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_SCORE_MS = 3_600_000;
+
+// Lightweight in-memory rate limit bucket: key = client IP, value = recent submission timestamps.
+const submissionRateLimit = new Map<string, number[]>();
 
 type LeaderboardRow = {
   nickname: string | null;
@@ -20,6 +26,37 @@ type PostPayload = {
   scoreMs?: unknown;
   nickname?: unknown;
 };
+
+function getClientIp(request: Request): string {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+    if (firstIp) {
+      return firstIp;
+    }
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function isRateLimited(ip: string, nowMs: number): boolean {
+  const bucket = submissionRateLimit.get(ip) ?? [];
+  const recentTimestamps = bucket.filter((timestamp) => nowMs - timestamp < RATE_LIMIT_WINDOW_MS);
+
+  if (recentTimestamps.length >= MAX_SUBMISSIONS_PER_WINDOW) {
+    submissionRateLimit.set(ip, recentTimestamps);
+    return true;
+  }
+
+  recentTimestamps.push(nowMs);
+  submissionRateLimit.set(ip, recentTimestamps);
+  return false;
+}
 
 async function fetchTopRows(limit: number): Promise<LeaderboardRow[]> {
   const { data, error } = await supabaseServer
@@ -58,6 +95,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    if (isRateLimited(clientIp, Date.now())) {
+      return NextResponse.json({ error: "Too many submissions. Please wait." }, { status: 429 });
+    }
+
     let body: PostPayload;
     try {
       body = (await request.json()) as PostPayload;
@@ -69,12 +111,12 @@ export async function POST(request: Request) {
     const nickname =
       typeof body.nickname === "string" ? body.nickname : undefined;
 
-    if (typeof scoreMs !== "number" || !Number.isFinite(scoreMs) || scoreMs <= 0) {
-      return NextResponse.json({ error: "Invalid scoreMs" }, { status: 400 });
+    if (typeof scoreMs !== "number" || !Number.isFinite(scoreMs) || scoreMs < 0 || scoreMs > MAX_SCORE_MS) {
+      return NextResponse.json({ error: "Invalid score value." }, { status: 400 });
     }
     const scoreMsInt = Math.floor(scoreMs);
-    if (scoreMsInt <= 0) {
-      return NextResponse.json({ error: "Invalid scoreMs" }, { status: 400 });
+    if (scoreMsInt < 0 || scoreMsInt > MAX_SCORE_MS) {
+      return NextResponse.json({ error: "Invalid score value." }, { status: 400 });
     }
 
     const hasValidNickname = typeof nickname === "string" && NICKNAME_REGEX.test(nickname);
