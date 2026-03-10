@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useState } from "react";
 
 import styles from "./NicknameOverlay.module.css";
 
@@ -15,6 +15,12 @@ type NicknameOverlayProps = {
 };
 
 const formatMs = (ms: number): string => `${(ms / 1000).toFixed(2)}s`;
+const stopKeyboardPropagation = (
+  event: ReactKeyboardEvent<HTMLInputElement>,
+): void => {
+  event.stopPropagation();
+  event.nativeEvent.stopImmediatePropagation?.();
+};
 
 const sanitizeNickname = (value: string): string =>
   value
@@ -87,11 +93,13 @@ export default function NicknameOverlay({
           placeholder="TRADER_01"
           aria-label="Nickname"
           onKeyDown={(event) => {
+            stopKeyboardPropagation(event);
             if (event.key === "Enter" && !isConfirmDisabled) {
               event.preventDefault();
               onConfirm(normalizedNickname);
             }
           }}
+          onKeyUp={stopKeyboardPropagation}
         />
         <p className={styles.hint}>A-Z, 0-9, _</p>
         <button
