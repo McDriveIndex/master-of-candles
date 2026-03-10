@@ -6,6 +6,8 @@ import { PLAY_SCENE_KEY } from "./PlayScene";
 export const GAME_OVER_SCENE_KEY = "GameOverScene";
 const NICKNAME_STORAGE_KEY = "moc_nickname";
 const NICKNAME_REGEX = /^[A-Za-z0-9_]{1,16}$/;
+const NICKNAME_REQUEST_EVENT_NAME = "moc:ask-nickname";
+const NICKNAME_RESULT_EVENT_NAME = "moc:nickname-result";
 const TITLE_Y = 34;
 const RUN_Y = 55;
 const RESTART_Y = 74;
@@ -29,6 +31,17 @@ type GameOverData = {
   bestMs?: number;
 };
 
+type NicknameRequestDetail = {
+  score: number;
+  requestId: number;
+  defaultNickname?: string;
+};
+
+type NicknameResultDetail = {
+  requestId: number;
+  nickname: string | null;
+};
+
 export function createGameOverScene(PhaserLib: typeof Phaser) {
   return class GameOverScene extends PhaserLib.Scene {
     private contextHeaderText?: Phaser.GameObjects.Text;
@@ -41,6 +54,9 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
     private titleGlowTween?: Phaser.Tweens.Tween;
     private restartPromptTween?: Phaser.Tweens.Tween;
     private playerHighlightTween?: Phaser.Tweens.Tween;
+    private nicknameRequestSeq = 0;
+    private pendingNicknameResultHandler?: (event: Event) => void;
+    private pendingNicknameResolve?: (nickname: string | null) => void;
 
     constructor() {
       super(GAME_OVER_SCENE_KEY);
@@ -167,6 +183,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
         this.musicToggleText?.removeAllListeners();
         this.musicToggleText = undefined;
         this.stopMenuLoopMusic();
+        this.resolvePendingNicknameRequest(null);
         for (const rowText of this.top5RowTexts) {
           rowText.destroy();
         }
@@ -249,7 +266,7 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       let statusMessage = "";
 
       if (response?.requireNickname) {
-        const promptedNickname = this.promptForNickname(storedNickname);
+        const promptedNickname = await this.requestNickname(scoreMsInt, storedNickname);
         if (promptedNickname && this.isValidNickname(promptedNickname)) {
           this.saveNickname(promptedNickname);
           response = await submitScore(scoreMsInt, promptedNickname);
@@ -467,15 +484,50 @@ export function createGameOverScene(PhaserLib: typeof Phaser) {
       }
     }
 
-    private promptForNickname(defaultValue?: string): string | null {
+    private async requestNickname(score: number, defaultNickname?: string): Promise<string | null> {
       if (typeof window === "undefined") {
         return null;
       }
-      const value = window.prompt("Enter nickname (A-Z, 0-9, _ max 16 chars)", defaultValue ?? "");
-      if (value === null) {
-        return null;
+
+      this.resolvePendingNicknameRequest(null);
+
+      this.nicknameRequestSeq += 1;
+      const requestId = this.nicknameRequestSeq;
+
+      return new Promise<string | null>((resolve) => {
+        this.pendingNicknameResolve = resolve;
+        const onResult = (event: Event) => {
+          const { detail } = event as CustomEvent<NicknameResultDetail>;
+          if (detail?.requestId !== requestId) {
+            return;
+          }
+          const nickname =
+            typeof detail.nickname === "string"
+              ? detail.nickname.trim().toUpperCase()
+              : null;
+          this.resolvePendingNicknameRequest(nickname);
+        };
+
+        this.pendingNicknameResultHandler = onResult;
+        window.addEventListener(NICKNAME_RESULT_EVENT_NAME, onResult as EventListener);
+        window.dispatchEvent(
+          new CustomEvent<NicknameRequestDetail>(NICKNAME_REQUEST_EVENT_NAME, {
+            detail: { score, requestId, defaultNickname },
+          }),
+        );
+      });
+    }
+
+    private resolvePendingNicknameRequest(nickname: string | null): void {
+      if (typeof window !== "undefined" && this.pendingNicknameResultHandler) {
+        window.removeEventListener(NICKNAME_RESULT_EVENT_NAME, this.pendingNicknameResultHandler as EventListener);
       }
-      return value.trim();
+      this.pendingNicknameResultHandler = undefined;
+      const resolve = this.pendingNicknameResolve;
+      this.pendingNicknameResolve = undefined;
+      if (resolve) {
+        resolve(nickname);
+      }
     }
 
     private isValidNickname(value: string): boolean {
