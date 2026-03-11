@@ -130,3 +130,15 @@
       0 0 12px rgb(255 78 78 / 36%);
   }
 }
+
+@media (min-width: 1600px) and (min-height: 900px) {
+  .stage {
+    width: min(44vw, 860px);
+    --game-bottom: clamp(24px, 4.8vh, 72px);
+    --hand-grip: clamp(156px, 15.5vh, 248px);
+  }
+
+  .footer {
+    width: min(92vw, 860px);
+  }
+}

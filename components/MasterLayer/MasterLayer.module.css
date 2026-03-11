@@ -223,3 +223,13 @@
     animation: none !important;
   }
 }
+
+@media (min-width: 1600px) and (min-height: 900px) {
+  .patchUpperLeft {
+    bottom: calc(var(--game-bottom) + (min(44vw, 860px) * 9 / 16) - 12px);
+  }
+
+  .patchUpperRight {
+    bottom: calc(var(--game-bottom) + (min(44vw, 860px) * 9 / 16) - 19px);
+  }
+}

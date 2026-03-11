@@ -43,3 +43,10 @@
     transparent 54%
   );
 }
+
+@media (min-width: 1600px) and (min-height: 900px) {
+  .floor {
+    bottom: -20vh;
+    width: clamp(1100px, 104vw, 1900px);
+  }
+}
