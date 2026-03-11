@@ -120,11 +120,19 @@ export default function Home() {
       {showDesktopScene ? <ChessFloorLayer /> : null}
       <main className={`${styles.main} ${styles.contentLayer}`}>
         <div className={`${styles.stage} ${showMobileFallback ? styles.mobileStage : ""}`}>
-          {showDesktopScene ? <MasterLayer /> : null}
-          <div className={`${styles.gameSlot} ${showMobileFallback ? styles.mobileGameSlot : ""}`}>
-            {showMobileFallback ? <MobileFallback /> : null}
-            {showDesktopScene ? <PhaserGame /> : null}
-          </div>
+          {showDesktopScene ? (
+            <div className={styles.desktopSceneScale}>
+              <MasterLayer />
+              <div className={styles.gameSlot}>
+                <PhaserGame />
+              </div>
+            </div>
+          ) : null}
+          {showMobileFallback ? (
+            <div className={`${styles.gameSlot} ${styles.mobileGameSlot}`}>
+              <MobileFallback />
+            </div>
+          ) : null}
         </div>
       </main>
       <NicknameOverlay
