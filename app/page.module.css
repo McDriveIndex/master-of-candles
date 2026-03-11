@@ -133,7 +133,7 @@
 
 @media (min-width: 1600px) and (min-height: 900px) {
   .stage {
-    width: min(44vw, 860px);
+    width: min(52vw, 1200px);
     --game-bottom: clamp(24px, 4.8vh, 72px);
     --hand-grip: clamp(156px, 15.5vh, 248px);
   }
