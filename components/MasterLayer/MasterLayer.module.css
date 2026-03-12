@@ -15,6 +15,8 @@
   --eyes-glow-radius-boost: 3px;
   --eyes-glow-alpha-base: calc(0.43 + var(--volatility-intensity) * 0.12);
   --eyes-glow-alpha-boost: calc(0.14 + var(--volatility-intensity) * 0.1);
+  --desktop-stage-width-scaled: calc(var(--desktop-stage-width, 665.2734375px) * var(--desktop-scene-scale, 1));
+  --desktop-frame-height-scaled: calc(var(--desktop-frame-height, 374.2109375px) * var(--desktop-scene-scale, 1));
 }
 
 .volatilityBias {
@@ -48,8 +50,6 @@
 .patchUpperLeft,
 .patchUpperRight {
   position: absolute;
-  width: clamp(148px, 23%, 220px);
-  height: clamp(112px, 16.5vh, 170px);
   border-radius: 999px;
   opacity: 1;
   background: #000;
@@ -58,6 +58,8 @@
 
 .patchUpperLeft {
   left: clamp(22px, 6.5%, 58px);
+  width: clamp(148px, 23%, 220px);
+  height: clamp(112px, 16.5vh, 170px);
   bottom: calc(var(--game-bottom) + (min(44vw, 720px) * 9 / 16) - 12px);
   transform: rotate(5deg);
 }
@@ -226,10 +228,24 @@
 
 @media (min-width: 1600px) and (min-height: 900px) {
   .patchUpperLeft {
-    bottom: calc(var(--game-bottom) + (min(44vw, 860px) * 9 / 16) - 12px);
+    left: calc((var(--desktop-stage-width-scaled) * 0.05151116555617268) - 12px);
+    width: calc((var(--desktop-stage-width-scaled) * 0.24977027185720158) * 1.12);
+    height: calc((var(--desktop-frame-height-scaled) * 0.44109484153482637) * 1.14);
+    bottom: calc(
+      var(--game-bottom) + var(--desktop-frame-height-scaled) - 4.667755126953125px
+      - ((var(--desktop-frame-height-scaled) * 0.44109484153482637) * 1.14)
+      - 8px
+    );
   }
 
   .patchUpperRight {
-    bottom: calc(var(--game-bottom) + (min(44vw, 860px) * 9 / 16) - 19px);
+    right: calc((var(--desktop-stage-width-scaled) * 0.06060021631280795) - 12px);
+    width: calc((var(--desktop-stage-width-scaled) * 0.29225474869355883) * 1.12);
+    height: calc((var(--desktop-frame-height-scaled) * 0.49663541523982374) * 1.14);
+    bottom: calc(
+      var(--game-bottom) + var(--desktop-frame-height-scaled) - 12.887237548828125px
+      - ((var(--desktop-frame-height-scaled) * 0.49663541523982374) * 1.14)
+      - 8px
+    );
   }
 }

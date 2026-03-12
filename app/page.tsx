@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 
 import ChessFloorLayer from "@/components/ChessFloorLayer/ChessFloorLayer";
@@ -15,6 +16,13 @@ const MOBILE_BREAKPOINT_PX = 768;
 const MOBILE_POINTER_QUERY = "(pointer: coarse)";
 const NICKNAME_REQUEST_EVENT_NAME = "moc:ask-nickname";
 const NICKNAME_RESULT_EVENT_NAME = "moc:nickname-result";
+const BASE_VIEWPORT_WIDTH = 1512;
+const BASE_VIEWPORT_HEIGHT = 827;
+const BASE_STAGE_WIDTH = 665.2734375;
+const BASE_STAGE_HEIGHT = 753.65625;
+const BASE_FLOOR_WIDTH = 1481.7578125;
+const BASE_FLOOR_BOTTOM_OVERFLOW = 148.859375;
+const BASE_FRAME_HEIGHT = 374.2109375;
 
 type NicknameRequestDetail = {
   score: number;
@@ -35,7 +43,10 @@ type NicknamePromptState = {
 
 export default function Home() {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  const [desktopSceneScale, setDesktopSceneScale] = useState(1);
   const [nicknamePrompt, setNicknamePrompt] = useState<NicknamePromptState | null>(null);
+  const showMobileFallback = isMobile === true;
+  const showDesktopScene = isMobile === false;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -66,6 +77,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !showDesktopScene) {
+      return;
+    }
+
+    const updateDesktopSceneScale = () => {
+      const scale = Math.max(
+        1,
+        Math.min(window.innerWidth / BASE_VIEWPORT_WIDTH, window.innerHeight / BASE_VIEWPORT_HEIGHT),
+      );
+      setDesktopSceneScale(scale);
+    };
+
+    updateDesktopSceneScale();
+    window.addEventListener("resize", updateDesktopSceneScale);
+    return () => {
+      window.removeEventListener("resize", updateDesktopSceneScale);
+    };
+  }, [showDesktopScene]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -88,11 +119,17 @@ export default function Home() {
     };
   }, []);
 
-  const showMobileFallback = isMobile === true;
-  const showDesktopScene = isMobile === false;
   const footerCopy = showMobileFallback
     ? "© 2026 Master of Candles"
     : "© 2026 Master of Candles. All rights reserved.";
+  const desktopSceneVars = {
+    "--desktop-scene-scale": String(desktopSceneScale),
+    "--desktop-stage-width": `${BASE_STAGE_WIDTH}px`,
+    "--desktop-stage-height": `${BASE_STAGE_HEIGHT}px`,
+    "--desktop-frame-height": `${BASE_FRAME_HEIGHT}px`,
+    "--desktop-floor-width": `${BASE_FLOOR_WIDTH}px`,
+    "--desktop-floor-bottom-overflow": `${BASE_FLOOR_BOTTOM_OVERFLOW}px`,
+  } as CSSProperties;
 
   const emitNicknameResult = (detail: NicknameResultDetail) => {
     window.dispatchEvent(new CustomEvent<NicknameResultDetail>(NICKNAME_RESULT_EVENT_NAME, { detail }));
@@ -117,16 +154,30 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <MatrixBackground />
-      {showDesktopScene ? <ChessFloorLayer /> : null}
-      <main className={`${styles.main} ${styles.contentLayer}`}>
-        <div className={`${styles.stage} ${showMobileFallback ? styles.mobileStage : ""}`}>
-          {showDesktopScene ? <MasterLayer /> : null}
-          <div className={`${styles.gameSlot} ${showMobileFallback ? styles.mobileGameSlot : ""}`}>
-            {showMobileFallback ? <MobileFallback /> : null}
-            {showDesktopScene ? <PhaserGame /> : null}
-          </div>
+      {showDesktopScene ? (
+        <div className={styles.desktopSceneViewport} style={desktopSceneVars}>
+          <ChessFloorLayer />
+          <main className={`${styles.main} ${styles.contentLayer}`}>
+            <div className={styles.desktopSceneRoot}>
+              <div className={styles.stage}>
+                <MasterLayer />
+                <div className={styles.gameSlot}>
+                  <PhaserGame />
+                </div>
+              </div>
+            </div>
+          </main>
         </div>
-      </main>
+      ) : null}
+      {showMobileFallback ? (
+        <main className={`${styles.main} ${styles.contentLayer}`}>
+          <div className={`${styles.stage} ${styles.mobileStage}`}>
+            <div className={`${styles.gameSlot} ${styles.mobileGameSlot}`}>
+              <MobileFallback />
+            </div>
+          </div>
+        </main>
+      ) : null}
       <NicknameOverlay
         key={nicknamePrompt?.requestId ?? -1}
         visible={nicknamePrompt !== null}

@@ -1,4 +1,5 @@
 .page {
+  position: relative;
   height: 100vh;
   display: flex;
   justify-content: center;
@@ -9,6 +10,17 @@
   background: #000;
   color: #f4f5f7;
   font-family: var(--font-geist-sans);
+}
+
+.desktopSceneViewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  --desktop-scene-scale: 1;
+  --desktop-stage-width: 665.2734375px;
+  --desktop-stage-height: 753.65625px;
+  --desktop-floor-width: 1481.7578125px;
+  --desktop-floor-top: 142.375px;
 }
 
 .main {
@@ -23,6 +35,14 @@
 .contentLayer {
   position: relative;
   z-index: 1;
+}
+
+.desktopSceneRoot {
+  position: relative;
+  width: var(--desktop-stage-width);
+  height: var(--desktop-stage-height);
+  transform: scale(var(--desktop-scene-scale));
+  transform-origin: top center;
 }
 
 .title {
@@ -45,6 +65,13 @@
   --game-bottom: clamp(20px, 4vh, 56px);
   --hand-grip: clamp(140px, 14vh, 220px);
   overflow: visible;
+}
+
+.desktopSceneRoot .stage {
+  width: var(--desktop-stage-width);
+  height: var(--desktop-stage-height);
+  --game-bottom: 33.08px;
+  --hand-grip: 140px;
 }
 
 .gameSlot {
@@ -132,12 +159,6 @@
 }
 
 @media (min-width: 1600px) and (min-height: 900px) {
-  .stage {
-    width: min(52vw, 1200px);
-    --game-bottom: clamp(24px, 4.8vh, 72px);
-    --hand-grip: clamp(156px, 15.5vh, 248px);
-  }
-
   .footer {
     width: min(92vw, 860px);
   }

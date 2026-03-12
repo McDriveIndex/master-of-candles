@@ -18,8 +18,9 @@
 .floor {
   position: absolute;
   left: 50%;
-  bottom: -18vh;
-  width: clamp(900px, 98vw, 1500px);
+  top: auto;
+  bottom: calc(100vh * -0.17999924425634825);
+  width: calc(100vw * 0.9799985532407407);
   height: auto;
   transform: translateX(-50%);
   opacity: 0.94;
@@ -42,11 +43,4 @@
     rgb(0 0 0 / 24%) 42%,
     transparent 54%
   );
-}
-
-@media (min-width: 1600px) and (min-height: 900px) {
-  .floor {
-    bottom: -20vh;
-    width: clamp(1100px, 104vw, 1900px);
-  }
 }
